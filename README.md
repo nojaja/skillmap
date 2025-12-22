@@ -8,6 +8,7 @@ The Elder Scrolls V: Skyrim inspired skill constellation prototype built with Vu
 ```bash
 cd server
 npm install
+cp .env.example .env  # configure SQLite path
 npm run prisma:push   # prepares SQLite schema
 npm run start         # starts the API on http://localhost:3000
 ```
