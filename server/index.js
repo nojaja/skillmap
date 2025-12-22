@@ -76,5 +76,5 @@ app.post("/api/save", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Skillmap API server listening on port ${PORT}`);
+  console.log(`SkillMap API server listening on port ${PORT}`);
 });

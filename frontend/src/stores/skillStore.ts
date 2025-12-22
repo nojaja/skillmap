@@ -28,7 +28,7 @@ const api = axios.create({
 
 const defaultSkillTree: SkillTree = {
   id: 'destruction_magic',
-  name: '破壊魔法',
+  name: '破壊魔法 (Destruction Magic)',
   nodes: [
     { id: 'novice', x: 500, y: 520, name: '素人', cost: 1, req: null },
     { id: 'apprentice', x: 420, y: 420, name: '見習い', cost: 1, req: 'novice' },
