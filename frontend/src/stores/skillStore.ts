@@ -1,6 +1,8 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 
+import defaultSkillTreeJson from '../assets/default-skill-tree.json'
+
 export const SKILL_POINT_SYSTEM_ENABLED = false
 
 export interface SkillNode {
@@ -37,26 +39,7 @@ const api = axios.create({
   baseURL: '/api',
 })
 
-const defaultSkillTree: SkillTree = {
-  id: 'destruction_magic',
-  name: '破壊魔法 (Destruction Magic)',
-  nodes: [
-    { id: 'novice', x: 500, y: 520, name: '素人', cost: 0, reqs: [] },
-    { id: 'apprentice', x: 420, y: 420, name: '見習い', cost: 0, reqs: ['novice'] },
-    { id: 'dual_cast', x: 600, y: 450, name: '二連の唱え', cost: 0, reqs: ['novice'] },
-    { id: 'adept', x: 350, y: 340, name: '精鋭', cost: 0, reqs: ['apprentice'] },
-    { id: 'impact', x: 650, y: 360, name: '衝撃', cost: 0, reqs: ['dual_cast'] },
-    { id: 'expert', x: 500, y: 300, name: '熟練者', cost: 0, reqs: ['adept', 'impact'] },
-  ],
-  connections: [
-    { from: 'novice', to: 'apprentice' },
-    { from: 'novice', to: 'dual_cast' },
-    { from: 'apprentice', to: 'adept' },
-    { from: 'dual_cast', to: 'impact' },
-    { from: 'adept', to: 'expert' },
-    { from: 'impact', to: 'expert' },
-  ],
-}
+const fallbackSkillTree = defaultSkillTreeJson as SkillTree
 
 const normalizeNodes = (rawNodes: unknown[]): SkillDraft[] => {
   if (!Array.isArray(rawNodes)) return []
@@ -127,18 +110,19 @@ const normalizeConnections = (
   return connections
 }
 
-const normalizeSkillTree = (payload?: Partial<SkillTree>): SkillTree => {
-  const nodes = normalizeNodes((payload?.nodes as unknown[]) ?? defaultSkillTree.nodes)
-  const connections = normalizeConnections(nodes, (payload?.connections as unknown[]) ?? defaultSkillTree.connections)
+const normalizeSkillTree = (payload?: Partial<SkillTree>, fallback: SkillTree = fallbackSkillTree): SkillTree => {
+  const nodes = normalizeNodes((payload?.nodes as unknown[]) ?? fallback.nodes)
+  const connections = normalizeConnections(nodes, (payload?.connections as unknown[]) ?? fallback.connections)
 
   return {
-    id: typeof payload?.id === 'string' && payload.id.trim().length > 0 ? payload.id : defaultSkillTree.id,
-    name:
-      typeof payload?.name === 'string' && payload.name.trim().length > 0 ? payload.name.trim() : defaultSkillTree.name,
+    id: typeof payload?.id === 'string' && payload.id.trim().length > 0 ? payload.id : fallback.id,
+    name: typeof payload?.name === 'string' && payload.name.trim().length > 0 ? payload.name.trim() : fallback.name,
     nodes,
     connections,
   }
 }
+
+const defaultSkillTree = normalizeSkillTree(defaultSkillTreeJson as SkillTree, fallbackSkillTree)
 
 export const useSkillStore = defineStore('skill', {
   state: () => ({
@@ -331,10 +315,10 @@ export const useSkillStore = defineStore('skill', {
         return { ok: false, message: 'スキル情報が不正です' }
       }
 
-        const normalizedSkillWithId: SkillNode = {
-          ...normalizedSkillUpdate,
-          id: candidateId,
-        }
+      const normalizedSkillWithId: SkillNode = {
+        ...normalizedSkillUpdate,
+        id: candidateId,
+      }
 
       const targetIndex = this.skillTreeData.nodes.findIndex((node) => node.id === payload.id)
       if (targetIndex === -1) {
@@ -343,7 +327,7 @@ export const useSkillStore = defineStore('skill', {
 
       this.skillTreeData.nodes[targetIndex] = {
         ...this.skillTreeData.nodes[targetIndex],
-          ...normalizedSkillWithId,
+        ...normalizedSkillWithId,
       }
       this.refreshConnections()
       this.activeSkillId = payload.id
@@ -398,6 +382,35 @@ export const useSkillStore = defineStore('skill', {
         await api.post('/skill-tree', this.skillTreeData)
       } catch (error) {
         console.error('スキルツリーの保存に失敗しました', error)
+      }
+    },
+    async exportSkillTree() {
+      try {
+        this.refreshConnections()
+        const { data } = await api.get('/skill-tree/export')
+        const normalized = normalizeSkillTree(data, defaultSkillTree)
+        const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${normalized.id || 'skill-tree'}.json`
+        anchor.click()
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('スキルツリーのエクスポートに失敗しました', error)
+      }
+    },
+    async importSkillTreeFromFile(file: File) {
+      try {
+        const content = await file.text()
+        const parsed = JSON.parse(content)
+        const normalized = normalizeSkillTree(parsed, defaultSkillTree)
+        await api.post('/skill-tree/import', normalized)
+        this.skillTreeData = normalized
+        this.clearSelection()
+      } catch (error) {
+        console.error('スキルツリーのインポートに失敗しました', error)
+        throw error
       }
     },
     async toggleEditMode() {
