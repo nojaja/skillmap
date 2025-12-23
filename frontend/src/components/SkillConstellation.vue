@@ -12,6 +12,11 @@ const isConnectionUnlocked = (from: string, to: string) =>
   skillStore.isUnlocked(from) && skillStore.isUnlocked(to)
 
 const handleNodeClick = (node: SkillNode) => {
+  if (skillStore.isUnlocked(node.id) && skillStore.canDisable(node.id)) {
+    skillStore.disableSkill(node.id)
+    return
+  }
+
   skillStore.unlockSkill(node.id)
 }
 </script>
