@@ -48,7 +48,7 @@ watch(
     editSkillForm.reqs = [...(skill.reqs ?? [])]
     editMessage.value = ''
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 )
 
 const handleUpdate = () => {

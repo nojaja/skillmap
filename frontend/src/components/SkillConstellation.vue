@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { SKILL_POINT_SYSTEM_ENABLED, useSkillStore, type SkillNode } from '../stores/skillStore'
 
 const skillStore = useSkillStore()
@@ -18,6 +18,8 @@ const dragState = reactive({
   nodeStartX: 0,
   nodeStartY: 0,
 })
+
+const pressingNodeId = ref<string | null>(null)
 
 const isConnectionUnlocked = (from: string, to: string) =>
   skillStore.isUnlocked(from) && skillStore.isUnlocked(to)
@@ -69,11 +71,13 @@ const beginDrag = (node: SkillNode, event: MouseEvent) => {
 }
 
 const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
-  if (isEditMode.value) {
-    const multiSelect = event.ctrlKey || event.metaKey
-    skillStore.toggleSelection(node.id, multiSelect)
-    return
-  }
+  if (!isEditMode.value) return
+  const multiSelect = event.ctrlKey || event.metaKey
+  skillStore.toggleSelection(node.id, multiSelect)
+}
+
+const handleActivation = (node: SkillNode) => {
+  if (isEditMode.value) return
 
   if (skillStore.isUnlocked(node.id) && skillStore.canDisable(node.id)) {
     skillStore.disableSkill(node.id)
@@ -81,6 +85,37 @@ const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
   }
 
   skillStore.unlockSkill(node.id)
+}
+
+let longPressTimer: number | null = null
+const clearLongPress = () => {
+  if (longPressTimer !== null) {
+    window.clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+const handleLongPressStart = (node: SkillNode) => {
+  if (isEditMode.value) return
+  clearLongPress()
+  longPressTimer = window.setTimeout(() => {
+    handleActivation(node)
+  }, 550)
+}
+
+const handleLongPressEnd = () => {
+  clearLongPress()
+}
+
+const beginPress = (node: SkillNode) => {
+  if (isEditMode.value) return
+  if (getVariant(node) === 'available') {
+    pressingNodeId.value = node.id
+  }
+}
+
+const endPress = () => {
+  pressingNodeId.value = null
 }
 
 const handleMouseMove = (event: MouseEvent) => {
@@ -149,8 +184,11 @@ onBeforeUnmount(() => {
       :key="node.id"
       class="absolute -translate-x-1/2 -translate-y-1/2 transform cursor-pointer"
       :style="{ left: `${node.x}px`, top: `${node.y}px` }"
-      @mousedown.prevent="(event) => beginDrag(node, event)"
+      @mousedown.prevent="(event) => { beginDrag(node, event); handleLongPressStart(node); beginPress(node) }"
+      @mouseup="() => { handleLongPressEnd(); endPress() }"
+      @mouseleave="() => { handleLongPressEnd(); endPress() }"
       @click="(event) => handleNodeClick(node, event)"
+      @dblclick.prevent="() => handleActivation(node)"
     >
       <!-- 環境光 (Ambient Light) -->
       <div
@@ -164,7 +202,10 @@ onBeforeUnmount(() => {
         class="star-core"
         :class="[
           getVariant(node),
-          { 'star-core--selected': isEditMode && selectedNodeIds.includes(node.id) },
+          {
+            'star-core--selected': isEditMode && selectedNodeIds.includes(node.id),
+            'star-core--pressing': !isEditMode && getVariant(node) === 'available' && pressingNodeId === node.id,
+          },
         ]"
         :style="{ animationDelay: getAnimationDelay(node.id) }"
       ></div>
@@ -190,7 +231,7 @@ onBeforeUnmount(() => {
   background: #fff;
   border-radius: 50%;
   position: relative;
-  transition: all 0.3s ease;
+  transition: box-shadow 0.55s ease, transform 0.55s ease;
   z-index: 10;
 }
 
@@ -266,6 +307,15 @@ onBeforeUnmount(() => {
   opacity: 0.6;
 }
 
+.star-core.available.star-core--pressing {
+  box-shadow:
+    0 0 8px 4px #fff,
+    0 0 25px 10px #4deeea,
+    0 0 60px 20px #00c3ff;
+  transform: scale(1.1);
+  animation: none;
+}
+
 .star-core.unlocked,
 .star-core.root {
   background: #fff;
@@ -290,7 +340,7 @@ onBeforeUnmount(() => {
 }
 
 /* ホバー効果 */
-.star-core:hover {
+.star-core:not(.available):hover {
   transform: scale(1.15);
   box-shadow: 
     0 0 8px 4px #fff, 
