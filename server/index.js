@@ -1,12 +1,19 @@
 import cors from "cors";
 import express from "express";
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import { PrismaClient } from "@prisma/client";
 
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT ?? 3000;
 
-const defaultSkillTree = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const defaultSkillTreePath = path.resolve(__dirname, "data/default-skill-tree.json");
+
+const builtinDefaultSkillTree = {
   id: "destruction_magic",
   name: "破壊魔法 (Destruction Magic)",
   nodes: [
@@ -26,6 +33,8 @@ const defaultSkillTree = {
     { from: "impact", to: "expert" },
   ],
 };
+
+let defaultSkillTree = builtinDefaultSkillTree;
 
 const parseJsonArray = (raw, fallback) => {
   try {
@@ -107,17 +116,13 @@ const sanitizeConnections = (rawConnections, nodes) => {
   return result;
 };
 
-const normalizeSkillTreePayload = (payload = {}) => {
-  const nodes = sanitizeNodes(payload.nodes ?? defaultSkillTree.nodes);
-  const connections = sanitizeConnections(payload.connections ?? defaultSkillTree.connections, nodes);
+const normalizeSkillTreePayload = (payload = {}, fallback = defaultSkillTree) => {
+  const base = fallback ?? defaultSkillTree;
+  const nodes = sanitizeNodes(payload.nodes ?? base.nodes);
+  const connections = sanitizeConnections(payload.connections ?? base.connections, nodes);
   const treeId =
-    typeof payload.id === "string" && payload.id.trim().length > 0
-      ? payload.id.trim()
-      : defaultSkillTree.id;
-  const name =
-    typeof payload.name === "string" && payload.name.trim().length > 0
-      ? payload.name.trim()
-      : defaultSkillTree.name;
+    typeof payload.id === "string" && payload.id.trim().length > 0 ? payload.id.trim() : base.id;
+  const name = typeof payload.name === "string" && payload.name.trim().length > 0 ? payload.name.trim() : base.name;
 
   return {
     id: treeId,
@@ -126,6 +131,19 @@ const normalizeSkillTreePayload = (payload = {}) => {
     connections,
   };
 };
+
+const loadDefaultSkillTree = async () => {
+  try {
+    const raw = await fs.readFile(defaultSkillTreePath, "utf-8");
+    const parsed = JSON.parse(raw);
+    defaultSkillTree = normalizeSkillTreePayload(parsed, builtinDefaultSkillTree);
+  } catch (error) {
+    console.error("初期スキルツリーデータの読み込みに失敗したため組み込みの既定値を利用します", error);
+    defaultSkillTree = builtinDefaultSkillTree;
+  }
+};
+
+await loadDefaultSkillTree();
 
 const getOrCreateStatus = async () => {
   const existing = await prisma.skillStatus.findUnique({ where: { id: 1 } });
@@ -149,6 +167,41 @@ const getOrCreateSkillTree = async () => {
       name: defaultSkillTree.name,
       nodes: JSON.stringify(defaultSkillTree.nodes),
       connections: JSON.stringify(defaultSkillTree.connections),
+    },
+  });
+};
+
+const fetchNormalizedSkillTree = async () => {
+  const record = await getOrCreateSkillTree();
+  const nodes = parseJsonArray(record.nodes, defaultSkillTree.nodes);
+  const connections = parseJsonArray(record.connections, defaultSkillTree.connections);
+
+  return normalizeSkillTreePayload(
+    {
+      id: record.treeId,
+      name: record.name,
+      nodes,
+      connections,
+    },
+    defaultSkillTree,
+  );
+};
+
+const saveSkillTreeRecord = async (normalized) => {
+  return prisma.skillTree.upsert({
+    where: { id: 1 },
+    update: {
+      treeId: normalized.id,
+      name: normalized.name,
+      nodes: JSON.stringify(normalized.nodes),
+      connections: JSON.stringify(normalized.connections),
+    },
+    create: {
+      id: 1,
+      treeId: normalized.id,
+      name: normalized.name,
+      nodes: JSON.stringify(normalized.nodes),
+      connections: JSON.stringify(normalized.connections),
     },
   });
 };
@@ -204,48 +257,48 @@ app.post("/api/save", async (req, res) => {
 
 app.get("/api/skill-tree", async (_req, res) => {
   try {
-    const record = await getOrCreateSkillTree();
-    const nodes = parseJsonArray(record.nodes, defaultSkillTree.nodes);
-    const connections = parseJsonArray(record.connections, defaultSkillTree.connections);
-    const normalized = normalizeSkillTreePayload({
-      id: record.treeId,
-      name: record.name,
-      nodes,
-      connections,
-    });
-
+    const normalized = await fetchNormalizedSkillTree();
     res.json(normalized);
   } catch (error) {
     console.error("スキルツリー取得に失敗しました", error);
-    res.status(500).json(normalizeSkillTreePayload(defaultSkillTree));
+    res.status(500).json(normalizeSkillTreePayload(defaultSkillTree, defaultSkillTree));
   }
 });
 
 app.post("/api/skill-tree", async (req, res) => {
-  const normalized = normalizeSkillTreePayload(req.body || {});
+  const normalized = normalizeSkillTreePayload(req.body || {}, defaultSkillTree);
 
   try {
-    await prisma.skillTree.upsert({
-      where: { id: 1 },
-      update: {
-        treeId: normalized.id,
-        name: normalized.name,
-        nodes: JSON.stringify(normalized.nodes),
-        connections: JSON.stringify(normalized.connections),
-      },
-      create: {
-        id: 1,
-        treeId: normalized.id,
-        name: normalized.name,
-        nodes: JSON.stringify(normalized.nodes),
-        connections: JSON.stringify(normalized.connections),
-      },
-    });
+    await saveSkillTreeRecord(normalized);
 
     res.json(normalized);
   } catch (error) {
     console.error("スキルツリー保存に失敗しました", error);
     res.status(500).json({ error: "スキルツリーの保存に失敗しました" });
+  }
+});
+
+app.get("/api/skill-tree/export", async (_req, res) => {
+  try {
+    const normalized = await fetchNormalizedSkillTree();
+    res.setHeader("Content-Disposition", "attachment; filename=skill-tree.json");
+    res.setHeader("Content-Type", "application/json");
+    res.json(normalized);
+  } catch (error) {
+    console.error("スキルツリーのエクスポートに失敗しました", error);
+    res.status(500).json({ error: "スキルツリーのエクスポートに失敗しました" });
+  }
+});
+
+app.post("/api/skill-tree/import", async (req, res) => {
+  const normalized = normalizeSkillTreePayload(req.body || {}, defaultSkillTree);
+
+  try {
+    await saveSkillTreeRecord(normalized);
+    res.json(normalized);
+  } catch (error) {
+    console.error("スキルツリーのインポートに失敗しました", error);
+    res.status(500).json({ error: "スキルツリーのインポートに失敗しました" });
   }
 });
 

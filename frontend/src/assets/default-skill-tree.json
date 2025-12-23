@@ -1,0 +1,20 @@
+{
+  "id": "destruction_magic",
+  "name": "破壊魔法 (Destruction Magic)",
+  "nodes": [
+    { "id": "novice", "x": 500, "y": 520, "name": "素人", "cost": 0, "reqs": [] },
+    { "id": "apprentice", "x": 420, "y": 420, "name": "見習い", "cost": 0, "reqs": ["novice"] },
+    { "id": "dual_cast", "x": 600, "y": 450, "name": "二連の唱え", "cost": 0, "reqs": ["novice"] },
+    { "id": "adept", "x": 350, "y": 340, "name": "精鋭", "cost": 0, "reqs": ["apprentice"] },
+    { "id": "impact", "x": 650, "y": 360, "name": "衝撃", "cost": 0, "reqs": ["dual_cast"] },
+    { "id": "expert", "x": 500, "y": 300, "name": "熟練者", "cost": 0, "reqs": ["adept", "impact"] }
+  ],
+  "connections": [
+    { "from": "novice", "to": "apprentice" },
+    { "from": "novice", "to": "dual_cast" },
+    { "from": "apprentice", "to": "adept" },
+    { "from": "dual_cast", "to": "impact" },
+    { "from": "adept", "to": "expert" },
+    { "from": "impact", "to": "expert" }
+  ]
+}

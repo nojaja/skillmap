@@ -14,7 +14,10 @@ const editSkillForm = reactive<SkillDraft>({
 })
 
 const editMessage = ref('')
+const ioMessage = ref('')
+const pendingImport = ref(false)
 const editReqInput = ref('')
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const displayName = (id: string) => skillStore.skillTreeData.nodes.find((n) => n.id === id)?.name ?? id
 const hasActiveSkill = computed(() => Boolean(skillStore.activeSkill))
 
@@ -86,6 +89,42 @@ const addReqFromInput = () => {
 
 const removeReq = (id: string) => {
   editSkillForm.reqs = editSkillForm.reqs.filter((req) => req !== id)
+}
+
+const handleExport = async () => {
+  ioMessage.value = ''
+  try {
+    await skillStore.exportSkillTree()
+    ioMessage.value = 'スキルツリーをエクスポートしました'
+  } catch (error) {
+    console.error('エクスポート処理中に失敗しました', error)
+    ioMessage.value = 'エクスポートに失敗しました'
+  }
+}
+
+const triggerImport = () => {
+  ioMessage.value = ''
+  fileInputRef.value?.click()
+}
+
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement | null
+  const file = input?.files?.[0]
+  if (!file) return
+
+  pendingImport.value = true
+  ioMessage.value = ''
+
+  try {
+    await skillStore.importSkillTreeFromFile(file)
+    ioMessage.value = 'スキルツリーをインポートしました'
+  } catch (error) {
+    console.error('インポート処理中に失敗しました', error)
+    ioMessage.value = 'インポートに失敗しました'
+  } finally {
+    if (input) input.value = ''
+    pendingImport.value = false
+  }
 }
 </script>
 
@@ -221,6 +260,42 @@ const removeReq = (id: string) => {
           </div>
           <p v-if="editMessage" class="text-xs text-amber-300">{{ editMessage }}</p>
         </form>
+      </div>
+
+      <div class="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-semibold text-slate-100">スキルネットの入出力</h3>
+          <span class="text-xs text-slate-400">JSON</span>
+        </div>
+        <p class="mb-3 text-xs text-slate-400">
+          編集モードで現在のスキルネットをエクスポート/インポートできます。エクスポートしたファイルは初期データとしても利用できます。
+        </p>
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            :disabled="!skillStore.editMode"
+            @click="handleExport"
+          >
+            エクスポート (JSON)
+          </button>
+          <button
+            class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            :disabled="!skillStore.editMode || pendingImport"
+            @click="triggerImport"
+          >
+            インポート (JSON)
+          </button>
+          <input
+            ref="fileInputRef"
+            class="hidden"
+            type="file"
+            accept="application/json"
+            @change="handleFileChange"
+          />
+        </div>
+        <p v-if="ioMessage" class="mt-2 text-xs text-cyan-300">{{ ioMessage }}</p>
       </div>
     </div>
   </section>
