@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { SKILL_POINT_SYSTEM_ENABLED, useSkillStore, type SkillNode } from '../stores/skillStore'
 
 const skillStore = useSkillStore()
@@ -10,6 +10,13 @@ const connections = computed(() => skillStore.skillTreeData.connections)
 const isEditMode = computed(() => skillStore.editMode)
 const selectedNodeIds = computed(() => skillStore.selectedSkillIds)
 const transitionClass = computed(() => (isEditMode.value ? '' : 'transition-all duration-200'))
+const focusedSkillId = ref<string | null>(null)
+const focusedSkill = computed(() => nodes.value.find((node) => node.id === focusedSkillId.value) ?? null)
+const clearFocus = () => {
+  if (!isEditMode.value) {
+    focusedSkillId.value = null
+  }
+}
 
 const dragState = reactive({
   id: null as string | null,
@@ -30,6 +37,7 @@ const createDiamondPath = (radius = 18) => {
 }
 
 const STAR_PATH = createDiamondPath()
+const displayName = (id: string) => nodes.value.find((n) => n.id === id)?.name ?? id
 
 const isRootNode = (node: SkillNode) => !node.reqs || node.reqs.length === 0
 
@@ -71,9 +79,18 @@ const beginDrag = (node: SkillNode, event: MouseEvent) => {
 }
 
 const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
-  if (!isEditMode.value) return
-  const multiSelect = event.ctrlKey || event.metaKey
-  skillStore.toggleSelection(node.id, multiSelect)
+  event.stopPropagation()
+  if (isEditMode.value) {
+    const multiSelect = event.ctrlKey || event.metaKey
+    skillStore.toggleSelection(node.id, multiSelect)
+    return
+  }
+
+  focusedSkillId.value = node.id
+}
+
+const handleBackgroundClick = () => {
+  clearFocus()
 }
 
 const handleActivation = (node: SkillNode) => {
@@ -129,6 +146,12 @@ const endDrag = () => {
   dragState.id = null
 }
 
+watch(isEditMode, (editing) => {
+  if (editing) {
+    focusedSkillId.value = null
+  }
+})
+
 onMounted(() => {
   window.addEventListener('mousemove', handleMouseMove)
   window.addEventListener('mouseup', endDrag)
@@ -141,7 +164,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="relative h-[800px] w-[1000px]">
+  <div class="relative h-[800px] w-[1000px]" @click="handleBackgroundClick">
     <!-- 線レイヤー (SVG) -->
     <svg class="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
       <defs>
@@ -221,6 +244,34 @@ onBeforeUnmount(() => {
         Cost: {{ node.cost }}
       </div>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="!isEditMode && focusedSkill"
+        class="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center"
+      >
+        <div
+          class="max-w-3xl rounded-2xl border border-amber-200/40 bg-slate-900/80 px-6 py-4 shadow-[0_10px_50px_rgba(0,0,0,0.65)] backdrop-blur"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-[11px] uppercase tracking-[0.25em] text-amber-200/80">Skill</p>
+              <h3 class="text-2xl font-semibold text-amber-100 drop-shadow">{{ focusedSkill.name }}</h3>
+            </div>
+            <div v-if="skillPointSystemEnabled" class="text-right">
+              <p class="text-[11px] uppercase tracking-[0.15em] text-slate-300">Cost</p>
+              <p class="text-xl font-bold text-cyan-200">{{ focusedSkill.cost }}</p>
+            </div>
+          </div>
+          <p class="mt-3 text-sm leading-relaxed text-slate-100">
+            {{ focusedSkill.description || '説明が設定されていません' }}
+          </p>
+          <p v-if="focusedSkill.reqs && focusedSkill.reqs.length > 0" class="mt-2 text-xs text-slate-300">
+            前提: {{ focusedSkill.reqs.map((req) => displayName(req)).join(', ') }}
+          </p>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
