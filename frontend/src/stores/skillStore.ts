@@ -140,6 +140,48 @@ export const useSkillStore = defineStore('skill', {
     },
   },
   actions: {
+    findNonOverlappingPosition(startX: number, startY: number) {
+      const baseX = Math.round(startX)
+      const baseY = Math.round(startY)
+
+      const occupied = new Set(this.skillTreeData.nodes.map((node) => `${Math.round(node.x)},${Math.round(node.y)}`))
+      const isFree = (x: number, y: number) => !occupied.has(`${x},${y}`)
+
+      if (isFree(baseX, baseY)) return { x: baseX, y: baseY }
+
+      // 同一座標のみを衝突とみなし、近傍グリッドを外側へ探索する
+      const step = 20
+      const maxRadius = 50
+
+      for (let radius = 1; radius <= maxRadius; radius++) {
+        const offset = radius * step
+
+        // 上辺/下辺
+        for (let dx = -offset; dx <= offset; dx += step) {
+          const x1 = baseX + dx
+          const y1 = baseY - offset
+          if (isFree(x1, y1)) return { x: x1, y: y1 }
+
+          const x2 = baseX + dx
+          const y2 = baseY + offset
+          if (isFree(x2, y2)) return { x: x2, y: y2 }
+        }
+
+        // 左辺/右辺（角は上でチェック済みなので除外）
+        for (let dy = -offset + step; dy <= offset - step; dy += step) {
+          const x1 = baseX - offset
+          const y1 = baseY + dy
+          if (isFree(x1, y1)) return { x: x1, y: y1 }
+
+          const x2 = baseX + offset
+          const y2 = baseY + dy
+          if (isFree(x2, y2)) return { x: x2, y: y2 }
+        }
+      }
+
+      // 異常に密集している場合のフォールバック
+      return { x: baseX + step, y: baseY + step }
+    },
     generateSkillId() {
       const makeFallback = () => `skill-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
       if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -250,13 +292,15 @@ export const useSkillStore = defineStore('skill', {
           ? Math.round(selectedNodes.reduce((sum, node) => sum + node.y, 0) / selectedNodes.length)
           : 400
 
+      const position = this.findNonOverlappingPosition(x, y)
+
       const newId = this.generateSkillId()
       const result = this.addSkill({
         id: newId,
         name: '新規スキル',
         cost: 0,
-        x,
-        y,
+        x: position.x,
+        y: position.y,
         reqs: [...this.selectedSkillIds],
       })
 
@@ -288,14 +332,21 @@ export const useSkillStore = defineStore('skill', {
         id: candidateId,
       }
 
+      const { x, y } = this.findNonOverlappingPosition(normalizedSkillWithId.x, normalizedSkillWithId.y)
+      const normalizedSkillWithSafePosition: SkillNode = {
+        ...normalizedSkillWithId,
+        x,
+        y,
+      }
+
       if (this.skillTreeData.nodes.some((node) => node.id === normalizedSkillWithId.id)) {
         return { ok: false, message: '同じIDのスキルが既に存在します' }
       }
 
-      this.skillTreeData.nodes.push(normalizedSkillWithId)
+      this.skillTreeData.nodes.push(normalizedSkillWithSafePosition)
       this.refreshConnections()
-      this.activeSkillId = normalizedSkillWithId.id
-      this.selectedSkillIds = [normalizedSkillWithId.id]
+      this.activeSkillId = normalizedSkillWithSafePosition.id
+      this.selectedSkillIds = [normalizedSkillWithSafePosition.id]
       return { ok: true }
     },
     updateSkill(payload: SkillDraft) {
