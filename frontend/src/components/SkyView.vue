@@ -45,10 +45,15 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="relative h-[calc(100vh-96px)] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(15,23,42,0.95),_rgba(2,6,23,1))]"
+    class="relative h-[calc(100vh-96px)] overflow-hidden bg-[#050505]"
+    style="
+      background-image: radial-gradient(circle at 50% 50%, #111827 0%, #000000 100%),
+        radial-gradient(circle at 50% 40%, rgba(30, 58, 138, 0.2) 0%, transparent 60%),
+        radial-gradient(circle at 80% 20%, rgba(76, 29, 149, 0.15) 0%, transparent 50%);
+    "
   >
     <div
-      class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,_rgba(14,165,233,0.14)_0,_rgba(15,23,42,0)_40%)] blur-3xl"
+      class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,_rgba(14,165,233,0.05)_0,_rgba(0,0,0,0)_70%)]"
     />
 
     <div
