@@ -11,6 +11,7 @@ export interface SkillNode {
   y: number
   name: string
   cost: number
+  description: string
   reqs?: string[]
 }
 
@@ -20,6 +21,7 @@ export interface SkillDraft {
   y: number
   name: string
   cost: number
+  description: string
   reqs: string[]
 }
 
@@ -61,6 +63,11 @@ const normalizeNodes = (rawNodes: unknown[]): SkillDraft[] => {
         )
       : []
 
+    const description =
+      typeof (node as SkillNode).description === 'string'
+        ? (node as SkillNode).description.trim()
+        : ''
+
     seen.add(id)
     return [
       {
@@ -72,6 +79,7 @@ const normalizeNodes = (rawNodes: unknown[]): SkillDraft[] => {
             ? (node as SkillNode).name.trim()
             : id,
         cost: Math.max(0, Number.isFinite(Number((node as SkillNode).cost)) ? Number((node as SkillNode).cost) : 0),
+        description,
         reqs,
       },
     ]
@@ -301,6 +309,7 @@ export const useSkillStore = defineStore('skill', {
         cost: 0,
         x: position.x,
         y: position.y,
+        description: '',
         reqs: [...this.selectedSkillIds],
       })
 

@@ -10,6 +10,7 @@ const editSkillForm = reactive<SkillDraft>({
   cost: 0,
   x: 0,
   y: 0,
+  description: '',
   reqs: [],
 })
 
@@ -27,6 +28,7 @@ const resetEditSkillForm = () => {
   editSkillForm.cost = 0
   editSkillForm.x = 0
   editSkillForm.y = 0
+  editSkillForm.description = ''
   editSkillForm.reqs = []
   editMessage.value = ''
   editReqInput.value = ''
@@ -45,6 +47,7 @@ watch(
     editSkillForm.cost = skill.cost
     editSkillForm.x = skill.x
     editSkillForm.y = skill.y
+    editSkillForm.description = skill.description ?? ''
     editSkillForm.reqs = [...(skill.reqs ?? [])]
     editMessage.value = ''
   },
@@ -163,6 +166,19 @@ const handleFileChange = async (event: Event) => {
                 :disabled="!skillStore.editMode || !hasActiveSkill"
                 type="text"
               />
+            </label>
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-200">
+              説明
+              <textarea
+                v-model="editSkillForm.description"
+                class="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm focus:border-amber-300 focus:outline-none disabled:opacity-60"
+                :disabled="!skillStore.editMode || !hasActiveSkill"
+                rows="3"
+                placeholder="スキルの概要や効果を入力"
+              ></textarea>
             </label>
           </div>
 
