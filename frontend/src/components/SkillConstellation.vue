@@ -198,15 +198,30 @@ onBeforeUnmount(() => {
 
 /* 状態別スタイル */
 .star-core.locked {
-  background: #334155;
-  box-shadow: 0 0 4px rgba(255, 255, 255, 0.2);
-  opacity: 0.6;
-  width: 10px;
-  height: 10px;
+  background: #fae8ff;
+  box-shadow: 
+    0 0 3px 1px #e879f9, 
+    0 0 8px 2px #a21caf;
+  opacity: 0.65;
+  width: 12px;
+  height: 12px;
 }
 .star-core.locked::before,
 .star-core.locked::after {
-  display: none;
+  display: block;
+  background: linear-gradient(to bottom, transparent, rgba(232, 121, 249, 0.6) 40%, rgba(232, 121, 249, 0.6) 60%, transparent);
+  box-shadow: 0 0 4px rgba(162, 28, 175, 0.4);
+}
+.star-core.locked::after {
+  background: linear-gradient(to right, transparent, rgba(232, 121, 249, 0.6) 40%, rgba(232, 121, 249, 0.6) 60%, transparent);
+}
+.star-core.locked::before {
+  width: 1px;
+  height: 36px;
+}
+.star-core.locked::after {
+  width: 36px;
+  height: 1px;
 }
 
 .star-core.available {
