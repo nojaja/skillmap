@@ -1,6 +1,8 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 
+export const SKILL_POINT_SYSTEM_ENABLED = false
+
 export interface SkillNode {
   id: string
   x: number
@@ -30,12 +32,12 @@ const defaultSkillTree: SkillTree = {
   id: 'destruction_magic',
   name: '破壊魔法 (Destruction Magic)',
   nodes: [
-    { id: 'novice', x: 500, y: 520, name: '素人', cost: 1, req: null },
-    { id: 'apprentice', x: 420, y: 420, name: '見習い', cost: 1, req: 'novice' },
-    { id: 'dual_cast', x: 600, y: 450, name: '二連の唱え', cost: 1, req: 'novice' },
-    { id: 'adept', x: 350, y: 340, name: '精鋭', cost: 2, req: 'apprentice' },
-    { id: 'expert', x: 500, y: 300, name: '熟練者', cost: 2, req: 'adept' },
-    { id: 'impact', x: 650, y: 360, name: '衝撃', cost: 2, req: 'dual_cast' },
+    { id: 'novice', x: 500, y: 520, name: '素人', cost: 0, req: null },
+    { id: 'apprentice', x: 420, y: 420, name: '見習い', cost: 0, req: 'novice' },
+    { id: 'dual_cast', x: 600, y: 450, name: '二連の唱え', cost: 0, req: 'novice' },
+    { id: 'adept', x: 350, y: 340, name: '精鋭', cost: 0, req: 'apprentice' },
+    { id: 'expert', x: 500, y: 300, name: '熟練者', cost: 0, req: 'adept' },
+    { id: 'impact', x: 650, y: 360, name: '衝撃', cost: 0, req: 'dual_cast' },
   ],
   connections: [
     { from: 'novice', to: 'apprentice' },

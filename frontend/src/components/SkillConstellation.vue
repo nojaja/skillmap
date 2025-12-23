@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useSkillStore, type SkillNode } from '../stores/skillStore'
+import { SKILL_POINT_SYSTEM_ENABLED, useSkillStore, type SkillNode } from '../stores/skillStore'
 
 const skillStore = useSkillStore()
+const skillPointSystemEnabled = SKILL_POINT_SYSTEM_ENABLED
 
 const nodes = computed(() => skillStore.skillTreeData.nodes)
 const connections = computed(() => skillStore.skillTreeData.connections)
@@ -68,6 +69,7 @@ const handleNodeClick = (node: SkillNode) => {
           class="text-xs"
           text-anchor="middle"
           fill="#94a3b8"
+          v-if="skillPointSystemEnabled"
         >
           Cost: {{ node.cost }}
         </text>

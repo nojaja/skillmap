@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 import SkyView from './components/SkyView.vue'
-import { useSkillStore } from './stores/skillStore'
+import { SKILL_POINT_SYSTEM_ENABLED, useSkillStore } from './stores/skillStore'
 
 const skillStore = useSkillStore()
+const skillPointSystemEnabled = SKILL_POINT_SYSTEM_ENABLED
 
 onMounted(() => {
   skillStore.loadStatus()
@@ -19,7 +20,7 @@ onMounted(() => {
         <p class="text-sm text-slate-400">ドラッグで移動し、星をクリックしてスキルを習得します。</p>
       </div>
       <div class="flex items-center gap-4">
-        <div class="text-right">
+        <div v-if="skillPointSystemEnabled" class="text-right">
           <p class="text-xs text-slate-400">残りスキルポイント</p>
           <p class="text-2xl font-bold text-cyan-300">{{ skillStore.availablePoints }}</p>
         </div>
