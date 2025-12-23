@@ -38,6 +38,16 @@ const getVariant = (node: SkillNode) => {
   return 'locked'
 }
 
+const getAnimationDelay = (id: string) => {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash << 5) - hash + id.charCodeAt(i)
+    hash |= 0
+  }
+  // アニメーション周期(約4秒)に合わせて -4s 〜 0s の範囲でずらす
+  return `${-Math.abs(hash % 4000) / 1000}s`
+}
+
 const getStrokeColor = (node: SkillNode, selected: boolean) => {
   if (isEditMode.value) return selected ? '#fbbf24' : '#94a3b8'
   const variant = getVariant(node)
@@ -105,18 +115,32 @@ onBeforeUnmount(() => {
           <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#00c3ff" flood-opacity="0.5" />
         </filter>
       </defs>
-      <line
-        v-for="connection in connections"
-        :key="`${connection.from}-${connection.to}`"
-        :x1="nodes.find((n) => n.id === connection.from)?.x"
-        :y1="nodes.find((n) => n.id === connection.from)?.y"
-        :x2="nodes.find((n) => n.id === connection.to)?.x"
-        :y2="nodes.find((n) => n.id === connection.to)?.y"
-        :stroke="isConnectionUnlocked(connection.from, connection.to) ? '#AEEEEE' : 'rgba(255,255,255,0.1)'"
-        :stroke-width="isConnectionUnlocked(connection.from, connection.to) ? 3 : 2"
-        stroke-linecap="round"
-        :style="isConnectionUnlocked(connection.from, connection.to) ? 'filter: url(#glow-line); opacity: 0.9;' : ''"
-      />
+      <g v-for="connection in connections" :key="`${connection.from}-${connection.to}`">
+        <!-- ベースの線 -->
+        <line
+          :x1="nodes.find((n) => n.id === connection.from)?.x"
+          :y1="nodes.find((n) => n.id === connection.from)?.y"
+          :x2="nodes.find((n) => n.id === connection.to)?.x"
+          :y2="nodes.find((n) => n.id === connection.to)?.y"
+          :stroke="isConnectionUnlocked(connection.from, connection.to) ? '#AEEEEE' : 'rgba(255,255,255,0.1)'"
+          :stroke-width="isConnectionUnlocked(connection.from, connection.to) ? 3 : 2"
+          stroke-linecap="round"
+          :class="{ 'connection-unlocked': isConnectionUnlocked(connection.from, connection.to) }"
+        />
+        <!-- 流れる光の線 (Unlockedのみ) -->
+        <line
+          v-if="isConnectionUnlocked(connection.from, connection.to)"
+          :x1="nodes.find((n) => n.id === connection.from)?.x"
+          :y1="nodes.find((n) => n.id === connection.from)?.y"
+          :x2="nodes.find((n) => n.id === connection.to)?.x"
+          :y2="nodes.find((n) => n.id === connection.to)?.y"
+          stroke="#ffffff"
+          stroke-width="2"
+          stroke-linecap="round"
+          class="connection-flow"
+          pathLength="100"
+        />
+      </g>
     </svg>
 
     <!-- ノードレイヤー (HTML) -->
@@ -142,6 +166,7 @@ onBeforeUnmount(() => {
           getVariant(node),
           { 'star-core--selected': isEditMode && selectedNodeIds.includes(node.id) },
         ]"
+        :style="{ animationDelay: getAnimationDelay(node.id) }"
       ></div>
 
       <!-- テキスト -->
@@ -205,6 +230,9 @@ onBeforeUnmount(() => {
   opacity: 0.65;
   width: 12px;
   height: 12px;
+  --pulse-opacity-min: 0.5;
+  --pulse-opacity-max: 0.75;
+  animation: pulse-strong 4s infinite ease-in-out;
 }
 .star-core.locked::before,
 .star-core.locked::after {
@@ -290,19 +318,54 @@ onBeforeUnmount(() => {
 
 @keyframes pulse-strong {
   0% {
-    opacity: 0.9;
+    opacity: var(--pulse-opacity-min, 0.9);
     transform: scale(1);
     filter: brightness(1);
   }
   50% {
-    opacity: 1;
+    opacity: var(--pulse-opacity-max, 1);
     transform: scale(1.08);
     filter: brightness(1.4); /* 眩しさを強調 */
   }
   100% {
-    opacity: 0.9;
+    opacity: var(--pulse-opacity-min, 0.9);
     transform: scale(1);
     filter: brightness(1);
+  }
+}
+
+.connection-unlocked {
+  filter: url(#glow-line);
+  animation: pulse-line 2s infinite ease-in-out;
+}
+
+.connection-flow {
+  stroke-dasharray: 15 100; /* 光の長さ15, 間隔200 (pathLength=100基準) */
+  stroke-dashoffset: 230;
+  animation: flow-line 1.0s linear infinite;
+  filter: drop-shadow(0 0 4px #fff);
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+}
+
+@keyframes pulse-line {
+  0% {
+    filter: url(#glow-line) brightness(1);
+    opacity: 0.8;
+  }
+  50% {
+    filter: url(#glow-line) brightness(1.5);
+    opacity: 1;
+  }
+  100% {
+    filter: url(#glow-line) brightness(1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes flow-line {
+  to {
+    stroke-dashoffset: 0;
   }
 }
 </style>
