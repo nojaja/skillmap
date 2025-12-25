@@ -2,13 +2,20 @@ const CHANNEL_NAME = 'skillmap-sync'
 const TREE_DIR = 'skill-trees'
 const STATUS_DIR = 'statuses'
 const DEFAULT_POINTS = 3
+const DEFAULT_TREE_ID = 'default-skill-tree'
+let cachedSkillTrees = []
 
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    Promise.resolve()
+      .then(() => ensureDefaultTree())
+      .then(() => refreshSkillTreeCacheFromDisk())
+      .then(() => self.clients.claim()),
+  )
 })
 
 const broadcastChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null
@@ -26,7 +33,7 @@ const normalizeUpdatedAt = (value, fallback) => {
 
 const isStringArray = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')
 
-const sanitizeTreeId = (value) => (typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : 'default-skill-tree')
+const sanitizeTreeId = (value) => (typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : DEFAULT_TREE_ID)
 
 const normalizeNodes = (rawNodes) => {
   if (!Array.isArray(rawNodes)) return []
@@ -94,6 +101,7 @@ const normalizeSkillTreePayload = (payload, fallback) => {
     nodes: [],
     connections: [],
     updatedAt: isoNow(),
+    sourceUrl: undefined,
   }
   const nodes = normalizeNodes((payload?.nodes ?? safeFallback.nodes) ?? [])
   const connections = normalizeConnections(nodes, (payload?.connections ?? safeFallback.connections) ?? [])
@@ -104,6 +112,10 @@ const normalizeSkillTreePayload = (payload, fallback) => {
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt, safeFallback.updatedAt),
+    sourceUrl:
+      typeof payload?.sourceUrl === 'string' && payload.sourceUrl.trim().length > 0
+        ? payload.sourceUrl.trim()
+        : safeFallback.sourceUrl,
   }
 }
 
@@ -131,6 +143,32 @@ const mergeByUpdatedAt = (incoming, existing) => {
 
 const getRoot = async () => self.navigator.storage.getDirectory()
 
+const ensureDefaultTree = async () => {
+  const fallback = normalizeSkillTreePayload({ id: DEFAULT_TREE_ID })
+  const existing = await readSkillTreeFile(DEFAULT_TREE_ID, null)
+  if (!existing) {
+    await writeSkillTreeFile(DEFAULT_TREE_ID, fallback)
+  }
+}
+
+const refreshSkillTreeCacheFromDisk = async () => {
+  try {
+    cachedSkillTrees = await listSkillTreeFiles()
+  } catch (error) {
+    console.error('スキルツリーキャッシュの更新に失敗しました', error)
+    cachedSkillTrees = []
+  }
+}
+
+const safeRemoveEntry = async (dirHandle, name) => {
+  try {
+    await dirHandle.removeEntry(name)
+  } catch (error) {
+    // 存在しない場合も含めて削除失敗は無視する
+    console.warn('removeEntry skipped', name, error?.message)
+  }
+}
+
 const ensureDir = async (root, parts) => {
   let dir = root
   for (const part of parts) {
@@ -150,7 +188,10 @@ const readJsonFile = async (pathParts, fallback) => {
     const content = await file.text()
     return JSON.parse(content)
   } catch (error) {
-    console.error('OPFS read failed', error)
+    // NotFound は初期状態なのでエラー扱いしない
+    if (error?.name !== 'NotFoundError') {
+      console.error('OPFS read failed', error)
+    }
     return fallback
   }
 }
@@ -175,6 +216,34 @@ const readStatusFile = async (treeId, fallback) => readJsonFile([STATUS_DIR, `${
 
 const writeStatusFile = async (treeId, data) => writeJsonFile([STATUS_DIR, `${treeId}.json`], data)
 
+const listSkillTreeFiles = async () => {
+  const root = await getRoot()
+  const dir = await ensureDir(root, [TREE_DIR])
+  const items = []
+
+  for await (const [name, handle] of dir.entries()) {
+    if (handle.kind !== 'file' || !name.endsWith('.json')) continue
+
+    try {
+      const file = await handle.getFile()
+      const content = await file.text()
+      const parsed = JSON.parse(content)
+      const normalized = normalizeSkillTreePayload(parsed)
+      items.push({
+        id: normalized.id,
+        name: normalized.name,
+        updatedAt: normalized.updatedAt,
+        nodeCount: Array.isArray(normalized.nodes) ? normalized.nodes.length : 0,
+        sourceUrl: normalized.sourceUrl,
+      })
+    } catch (error) {
+      console.error('ツリーファイルの読み込みに失敗しました', name, error)
+    }
+  }
+
+  return items.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+}
+
 const handleGetSkillTree = async (treeId, payload) => {
   const fallback = normalizeSkillTreePayload(payload?.fallback)
   const stored = await readSkillTreeFile(treeId, null)
@@ -190,6 +259,16 @@ const handleSaveSkillTree = async (treeId, payload) => {
   const stored = await readSkillTreeFile(treeId, null)
   const merged = mergeByUpdatedAt(incoming, stored ? normalizeSkillTreePayload(stored, incoming) : null)
   await writeSkillTreeFile(treeId, merged)
+  cachedSkillTrees = [
+    ...cachedSkillTrees.filter((item) => item.id !== merged.id),
+    {
+      id: merged.id,
+      name: merged.name,
+      updatedAt: merged.updatedAt,
+      nodeCount: Array.isArray(merged.nodes) ? merged.nodes.length : 0,
+      sourceUrl: merged.sourceUrl,
+    },
+  ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   if (broadcastChannel) {
     broadcastChannel.postMessage({ event: 'skill-tree-updated', treeId, updatedAt: merged.updatedAt })
   }
@@ -226,10 +305,43 @@ const handleExportSkillTree = async (treeId, payload) => {
 const handleImportSkillTree = async (treeId, payload) => {
   const normalized = normalizeSkillTreePayload(payload?.tree)
   await writeSkillTreeFile(treeId, normalized)
+  cachedSkillTrees = [
+    ...cachedSkillTrees.filter((item) => item.id !== normalized.id),
+    {
+      id: normalized.id,
+      name: normalized.name,
+      updatedAt: normalized.updatedAt,
+      nodeCount: Array.isArray(normalized.nodes) ? normalized.nodes.length : 0,
+      sourceUrl: normalized.sourceUrl,
+    },
+  ].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   if (broadcastChannel) {
     broadcastChannel.postMessage({ event: 'skill-tree-updated', treeId, updatedAt: normalized.updatedAt })
   }
   return normalized
+}
+
+const handleDeleteSkillTree = async (treeId) => {
+  const root = await getRoot()
+  const treeDir = await ensureDir(root, [TREE_DIR])
+  const statusDir = await ensureDir(root, [STATUS_DIR])
+  await safeRemoveEntry(treeDir, `${treeId}.json`)
+  await safeRemoveEntry(statusDir, `${treeId}.json`)
+
+  cachedSkillTrees = cachedSkillTrees.filter((item) => item.id !== treeId)
+
+  if (broadcastChannel) {
+    broadcastChannel.postMessage({ event: 'skill-tree-updated', treeId, updatedAt: isoNow() })
+  }
+
+  return { ok: true }
+}
+
+const handleListSkillTrees = async () => {
+  if (!cachedSkillTrees || cachedSkillTrees.length === 0) {
+    await refreshSkillTreeCacheFromDisk()
+  }
+  return cachedSkillTrees
 }
 
 const handlers = {
@@ -239,6 +351,8 @@ const handlers = {
   'save-skill-tree': handleSaveSkillTree,
   export: handleExportSkillTree,
   import: handleImportSkillTree,
+  'delete-skill-tree': handleDeleteSkillTree,
+  'list-skill-trees': handleListSkillTrees,
 }
 
 self.addEventListener('message', (event) => {

@@ -25,6 +25,8 @@ const dragState = reactive({
   nodeStartY: 0,
 })
 
+const tapState = reactive({ id: null as string | null, startX: 0, startY: 0, startTime: 0 })
+
 const pressingNodeId = ref<string | null>(null)
 
 const isConnectionUnlocked = (from: string, to: string) =>
@@ -77,6 +79,25 @@ const handleTouchStart = (node: SkillNode, event: TouchEvent) => {
   handleLongPressStart(node)
   beginPress(node)
   startDrag(node, touch.clientX, touch.clientY)
+  if (!isEditMode.value) {
+    tapState.id = node.id
+    tapState.startX = touch.clientX
+    tapState.startY = touch.clientY
+    tapState.startTime = Date.now()
+  }
+}
+
+const handleTouchEnd = (node: SkillNode, event: TouchEvent) => {
+  const touch = event.changedTouches[0]
+  if (touch && !isEditMode.value && tapState.id === node.id) {
+    const dx = touch.clientX - tapState.startX
+    const dy = touch.clientY - tapState.startY
+    const dt = Date.now() - tapState.startTime
+    if (Math.abs(dx) < 15 && Math.abs(dy) < 15 && dt < 500) {
+      focusedSkillId.value = node.id
+    }
+  }
+  tapState.id = null
 }
 
 const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
@@ -231,8 +252,8 @@ onBeforeUnmount(() => {
       @touchstart.prevent="(event) => handleTouchStart(node, event)"
       @mouseup="() => { handleLongPressEnd(); endPress() }"
       @mouseleave="() => { handleLongPressEnd(); endPress() }"
-      @touchend.stop="() => { handleLongPressEnd(); endPress(); endDrag() }"
-      @touchcancel.stop="() => { handleLongPressEnd(); endPress(); endDrag() }"
+      @touchend.stop="(event) => { handleLongPressEnd(); endPress(); endDrag(); handleTouchEnd(node, event) }"
+      @touchcancel.stop="() => { handleLongPressEnd(); endPress(); endDrag(); tapState.id = null }"
       @click="(event) => handleNodeClick(node, event)"
       @dblclick.prevent="() => handleActivation(node)"
     >

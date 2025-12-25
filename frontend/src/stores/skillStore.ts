@@ -10,9 +10,11 @@ import {
 import {
   ensureServiceWorker,
   exportSkillTreeFromSW,
+  deleteSkillTreeFromSW,
   getSkillTreeFromSW,
   getStatusFromSW,
   importSkillTreeToSW,
+  listSkillTreesFromSW,
   saveSkillTreeToSW,
   saveStatusToSW,
   subscribeSyncEvents,
@@ -22,6 +24,7 @@ import {
   type SkillDraft,
   type SkillNode,
   type SkillStatus,
+  type SkillTreeSummary,
   type SkillTree,
 } from '../types/skill'
 
@@ -53,6 +56,8 @@ export const useSkillStore = defineStore('skill', {
     skillTreeData: cloneSkillTree(defaultSkillTree),
     statusUpdatedAt: defaultSkillTree.updatedAt,
     skillTreeUpdatedAt: defaultSkillTree.updatedAt,
+    availableSkillTrees: [] as SkillTreeSummary[],
+    collectionLoading: false,
     loading: false,
     editMode: false,
     selectedSkillIds: [] as string[],
@@ -75,7 +80,27 @@ export const useSkillStore = defineStore('skill', {
     setupSyncListener() {
       if (this.syncUnsubscribe) return
       this.syncUnsubscribe = subscribeSyncEvents((payload) => {
-        if (payload.treeId !== this.currentTreeId) return
+        const defaultEntry: SkillTreeSummary = {
+          id: defaultSkillTree.id,
+          name: defaultSkillTree.name,
+          updatedAt: defaultSkillTree.updatedAt,
+          nodeCount: defaultSkillTree.nodes.length,
+          sourceUrl: defaultSkillTree.sourceUrl,
+        }
+
+        const fallbackMerged = [defaultEntry]
+        if (this.skillTreeData?.id) {
+          fallbackMerged.push({
+            id: this.skillTreeData.id,
+            name: this.skillTreeData.name,
+            updatedAt: this.skillTreeData.updatedAt,
+            nodeCount: this.skillTreeData.nodes.length,
+            sourceUrl: this.skillTreeData.sourceUrl,
+          })
+        }
+        const unique = new Map<string, SkillTreeSummary>()
+        fallbackMerged.forEach((item) => unique.set(item.id, item))
+        this.availableSkillTrees = Array.from(unique.values())
         if (payload.event === 'skill-tree-updated') {
           void this.loadSkillTree(this.currentTreeId)
         }
@@ -511,6 +536,110 @@ export const useSkillStore = defineStore('skill', {
       target.y = Math.round(y)
       this.refreshConnections()
     },
+    async fetchSkillTreeCollection() {
+      this.collectionLoading = true
+      const defaultEntry: SkillTreeSummary = {
+        id: defaultSkillTree.id,
+        name: defaultSkillTree.name,
+        updatedAt: defaultSkillTree.updatedAt,
+        nodeCount: defaultSkillTree.nodes.length,
+        sourceUrl: defaultSkillTree.sourceUrl,
+      }
+
+      try {
+        await ensureServiceWorker()
+        const list = await listSkillTreesFromSW()
+        // 取得結果 + 既知キャッシュ + 現在ロード中 + デフォルトを統合
+        const merged = [
+          ...list,
+          ...this.availableSkillTrees,
+          defaultEntry,
+        ]
+        // 直近でロード済みのツリーを必ずリストに反映する（古いSWでlistが効かない場合のフォールバック）
+        if (this.skillTreeData?.id) {
+          merged.push({
+            id: this.skillTreeData.id,
+            name: this.skillTreeData.name,
+            updatedAt: this.skillTreeData.updatedAt,
+            nodeCount: this.skillTreeData.nodes.length,
+            sourceUrl: this.skillTreeData.sourceUrl,
+          })
+        }
+        const unique = new Map<string, SkillTreeSummary>()
+        merged.forEach((item) => {
+          const safeId = item.id?.trim() || defaultEntry.id
+          unique.set(safeId, {
+            id: safeId,
+            name: item.name?.trim() || defaultEntry.name,
+            updatedAt: item.updatedAt || defaultEntry.updatedAt,
+            nodeCount: Number.isFinite(item.nodeCount) ? item.nodeCount : 0,
+            sourceUrl: item.sourceUrl,
+          })
+        })
+
+        this.availableSkillTrees = Array.from(unique.values()).sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+        )
+      } catch (error) {
+        console.error('スキルツリー一覧の取得に失敗しました', error)
+        const fallbackMerged = [defaultEntry]
+        // 既存キャッシュを保持
+        fallbackMerged.push(...this.availableSkillTrees)
+        if (this.skillTreeData?.id) {
+          fallbackMerged.push({
+            id: this.skillTreeData.id,
+            name: this.skillTreeData.name,
+            updatedAt: this.skillTreeData.updatedAt,
+            nodeCount: this.skillTreeData.nodes.length,
+            sourceUrl: this.skillTreeData.sourceUrl,
+          })
+        }
+        const unique = new Map<string, SkillTreeSummary>()
+        fallbackMerged.forEach((item) => unique.set(item.id, item))
+        this.availableSkillTrees = Array.from(unique.values())
+      } finally {
+        this.collectionLoading = false
+      }
+    },
+    async applyImportedSkillTree(tree: SkillTree) {
+      await ensureServiceWorker()
+      let alreadyExists = false
+      try {
+        const latestList = await listSkillTreesFromSW()
+        alreadyExists = latestList.some((item) => item.id === tree.id)
+      } catch (error) {
+        console.warn('スキルツリー一覧の取得に失敗したため、上書き確認をスキップします', error)
+      }
+
+      if (alreadyExists) {
+        const confirmed = window.confirm('同じIDのスキルツリーが存在します。上書きしますか？')
+        if (!confirmed) {
+          throw new Error('import-cancelled')
+        }
+      }
+
+      const imported = await importSkillTreeToSW(
+        toSerializableSkillTree({ ...tree, updatedAt: new Date().toISOString() }),
+      )
+      this.skillTreeData = normalizeSkillTree(imported, defaultSkillTree)
+      this.currentTreeId = this.skillTreeData.id
+      this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
+      this.clearSelection()
+      await this.loadStatus(this.currentTreeId)
+      // ローカルにも即反映（SW list非対応時のフォールバック）
+      const newEntry: SkillTreeSummary = {
+        id: this.skillTreeData.id,
+        name: this.skillTreeData.name,
+        updatedAt: this.skillTreeData.updatedAt,
+        nodeCount: this.skillTreeData.nodes.length,
+        sourceUrl: this.skillTreeData.sourceUrl,
+      }
+      const merged = [...this.availableSkillTrees.filter((s) => s.id !== newEntry.id), newEntry]
+      this.availableSkillTrees = merged.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      )
+      await this.fetchSkillTreeCollection()
+    },
     /**
      * 処理名: スキルツリー読込
      *
@@ -531,6 +660,8 @@ export const useSkillStore = defineStore('skill', {
       } catch (error) {
         console.error('スキルツリーの取得に失敗しました', error)
         this.skillTreeData = normalizeSkillTree({ id: targetTreeId }, defaultSkillTree)
+        // 既存キャッシュを保持
+        fallbackMerged.push(...this.availableSkillTrees)
         this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
       } finally {
         this.loading = false
@@ -582,6 +713,20 @@ export const useSkillStore = defineStore('skill', {
         console.error('スキルツリーのエクスポートに失敗しました', error)
       }
     },
+    async exportSkillTreeById(treeId: string) {
+      try {
+        const normalized = await exportSkillTreeFromSW(treeId)
+        const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${normalized.id || 'skill-tree'}.json`
+        anchor.click()
+        URL.revokeObjectURL(url)
+      } catch (error) {
+        console.error('スキルツリーのエクスポートに失敗しました', error)
+      }
+    },
     /**
      * 処理名: スキルツリーインポート
      *
@@ -594,14 +739,26 @@ export const useSkillStore = defineStore('skill', {
         const content = await file.text()
         const parsed = JSON.parse(content)
         const normalized = normalizeSkillTree(parsed, defaultSkillTree)
-        const imported = await importSkillTreeToSW(
-          toSerializableSkillTree({ ...normalized, updatedAt: new Date().toISOString() }),
-        )
-        this.skillTreeData = normalizeSkillTree(imported, defaultSkillTree)
-        this.currentTreeId = this.skillTreeData.id
-        this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
-        this.clearSelection()
-        await this.loadStatus(this.currentTreeId)
+        await this.applyImportedSkillTree(normalized)
+      } catch (error) {
+        console.error('スキルツリーのインポートに失敗しました', error)
+        throw error
+      }
+    },
+    async importSkillTreeFromUrl(url: string) {
+      try {
+        const trimmed = url?.trim()
+        if (!trimmed) {
+          throw new Error('インポートするURLを入力してください')
+        }
+
+        const response = await fetch(trimmed)
+        if (!response.ok) {
+          throw new Error(`スキルツリーの取得に失敗しました (${response.status})`)
+        }
+        const parsed = await response.json()
+        const normalized = normalizeSkillTree({ ...parsed, sourceUrl: trimmed }, defaultSkillTree)
+        await this.applyImportedSkillTree(normalized)
       } catch (error) {
         console.error('スキルツリーのインポートに失敗しました', error)
         throw error
@@ -621,6 +778,13 @@ export const useSkillStore = defineStore('skill', {
         await this.saveSkillTree()
         this.clearSelection()
       }
+    },
+    async activateSkillTree(treeId: string) {
+      const targetId = treeId?.trim() || defaultSkillTree.id
+      await this.loadSkillTree(targetId)
+      await this.loadStatus(targetId)
+      await this.refreshFromSourceUrl()
+      this.clearSelection()
     },
     /**
      * 処理名: ステータス読込
@@ -671,6 +835,44 @@ export const useSkillStore = defineStore('skill', {
         this.statusUpdatedAt = saved.updatedAt
       } catch (error) {
         console.error('進行状況の保存に失敗しました', error)
+      }
+    },
+    async deleteSkillTree(treeId: string) {
+      const targetId = treeId?.trim()
+      if (!targetId) {
+        return { ok: false, message: 'スキルツリーIDが不正です' }
+      }
+
+      try {
+        await ensureServiceWorker()
+        await deleteSkillTreeFromSW(targetId)
+        if (this.currentTreeId === targetId) {
+          this.clearSelection()
+          await this.activateSkillTree(defaultSkillTree.id)
+        }
+        await this.fetchSkillTreeCollection()
+        return { ok: true }
+      } catch (error) {
+        console.error('スキルツリーの削除に失敗しました', error)
+        return { ok: false, message: 'スキルツリーの削除に失敗しました' }
+      }
+    },
+    async refreshFromSourceUrl() {
+      const sourceUrl = this.skillTreeData.sourceUrl?.trim()
+      if (!sourceUrl) return
+
+      try {
+        const response = await fetch(sourceUrl)
+        if (!response.ok) return
+        const parsed = await response.json()
+        const normalized = normalizeSkillTree({ ...parsed, sourceUrl }, defaultSkillTree)
+        const incomingTime = new Date(normalized.updatedAt).getTime()
+        const currentTime = new Date(this.skillTreeData.updatedAt).getTime()
+        if (!Number.isFinite(incomingTime) || incomingTime <= currentTime) return
+
+        await this.applyImportedSkillTree(normalized)
+      } catch (error) {
+        console.error('ソースURLからの更新確認に失敗しました', error)
       }
     },
   },
