@@ -660,8 +660,6 @@ export const useSkillStore = defineStore('skill', {
       } catch (error) {
         console.error('スキルツリーの取得に失敗しました', error)
         this.skillTreeData = normalizeSkillTree({ id: targetTreeId }, defaultSkillTree)
-        // 既存キャッシュを保持
-        fallbackMerged.push(...this.availableSkillTrees)
         this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
       } finally {
         this.loading = false
