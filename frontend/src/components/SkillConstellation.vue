@@ -9,7 +9,6 @@ const nodes = computed(() => skillStore.skillTreeData.nodes)
 const connections = computed(() => skillStore.skillTreeData.connections)
 const isEditMode = computed(() => skillStore.editMode)
 const selectedNodeIds = computed(() => skillStore.selectedSkillIds)
-const transitionClass = computed(() => (isEditMode.value ? '' : 'transition-all duration-200'))
 const focusedSkillId = ref<string | null>(null)
 const focusedSkill = computed(() => nodes.value.find((node) => node.id === focusedSkillId.value) ?? null)
 const clearFocus = () => {
@@ -31,12 +30,6 @@ const pressingNodeId = ref<string | null>(null)
 const isConnectionUnlocked = (from: string, to: string) =>
   skillStore.isUnlocked(from) && skillStore.isUnlocked(to)
 
-const createDiamondPath = (radius = 18) => {
-  const r = radius
-  return `M0,${-r} L${r},0 L0,${r} L${-r},0 Z`
-}
-
-const STAR_PATH = createDiamondPath()
 const displayName = (id: string) => nodes.value.find((n) => n.id === id)?.name ?? id
 
 const isRootNode = (node: SkillNode) => !node.reqs || node.reqs.length === 0
@@ -56,15 +49,6 @@ const getAnimationDelay = (id: string) => {
   }
   // アニメーション周期(約4秒)に合わせて -4s 〜 0s の範囲でずらす
   return `${-Math.abs(hash % 4000) / 1000}s`
-}
-
-const getStrokeColor = (node: SkillNode, selected: boolean) => {
-  if (isEditMode.value) return selected ? '#fbbf24' : '#94a3b8'
-  const variant = getVariant(node)
-  if (variant === 'unlocked') return '#e0f2fe'
-  if (variant === 'available') return '#67e8f9'
-  if (variant === 'root') return '#f8fafc'
-  return '#334155'
 }
 
 const beginDrag = (node: SkillNode, event: MouseEvent) => {
