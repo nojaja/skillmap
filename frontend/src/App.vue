@@ -81,7 +81,7 @@ const switchTree = async (delta: number) => {
   if (!list.length) return
 
   const ids = list.map((item) => item.id)
-  const currentId = skillStore.currentTreeId || ids[0]
+  const currentId = skillStore.currentTreeId ?? ids[0] ?? ''
   const currentIndex = ids.indexOf(currentId)
   const nextIndex = currentIndex === -1 ? 0 : (currentIndex + delta + list.length) % list.length
   const next = list[nextIndex]
