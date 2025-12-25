@@ -30,16 +30,43 @@ const onMouseMove = (event: MouseEvent) => {
   }
 }
 
+const onTouchStart = (event: TouchEvent) => {
+  if (!canDragView.value) return
+  const touch = event.touches[0]
+  if (!touch) return
+  isDragging.value = true
+  dragStart.value = { x: touch.clientX, y: touch.clientY }
+  initialOffset.value = { ...offset.value }
+}
+
+const onTouchMove = (event: TouchEvent) => {
+  if (!canDragView.value) return
+  if (!isDragging.value) return
+  const touch = event.touches[0]
+  if (!touch) return
+  event.preventDefault()
+  const dx = touch.clientX - dragStart.value.x
+  const dy = touch.clientY - dragStart.value.y
+  offset.value = {
+    x: initialOffset.value.x + dx,
+    y: initialOffset.value.y + dy,
+  }
+}
+
 const stopDragging = () => {
   isDragging.value = false
 }
 
 onMounted(() => {
   window.addEventListener('mouseup', stopDragging)
+  window.addEventListener('touchend', stopDragging)
+  window.addEventListener('touchcancel', stopDragging)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('mouseup', stopDragging)
+  window.removeEventListener('touchend', stopDragging)
+  window.removeEventListener('touchcancel', stopDragging)
 })
 </script>
 
@@ -60,6 +87,8 @@ onBeforeUnmount(() => {
       class="relative h-full cursor-grab active:cursor-grabbing"
       @mousedown.prevent="onMouseDown"
       @mousemove="onMouseMove"
+      @touchstart.prevent="onTouchStart"
+      @touchmove.prevent="onTouchMove"
     >
       <div
         class="h-full w-full transition-transform duration-75"
