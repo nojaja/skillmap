@@ -10,7 +10,8 @@ const isDragging = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
 const initialOffset = ref({ x: 0, y: 0 })
 
-const canDragView = computed(() => !skillStore.editMode)
+// 編集モードでもビュー全体をドラッグできるように常にtrue
+const canDragView = computed(() => true)
 
 const onMouseDown = (event: MouseEvent) => {
   if (!canDragView.value) return

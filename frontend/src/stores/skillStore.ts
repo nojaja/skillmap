@@ -88,6 +88,20 @@ export const useSkillStore = defineStore('skill', {
       const safeId = treeId?.trim() || defaultSkillTree.id
       this.currentTreeId = safeId
     },
+    updateSkillTreeName(name: string) {
+      if (!this.editMode) {
+        return { ok: false, message: '編集モードでのみ更新できます' }
+      }
+
+      const trimmed = name?.trim() ?? ''
+      if (!trimmed) {
+        return { ok: false, message: 'スキルツリー名を入力してください' }
+      }
+
+      this.skillTreeData.name = trimmed
+      this.skillTreeUpdatedAt = new Date().toISOString()
+      return { ok: true }
+    },
     /**
      * 処理名: 空き座標の算出
      *
