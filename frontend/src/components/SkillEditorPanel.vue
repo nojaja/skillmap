@@ -4,6 +4,13 @@ import { useSkillStore, type SkillDraft } from '../stores/skillStore'
 
 const skillStore = useSkillStore()
 
+const props = defineProps<{
+  startNewSkillFlow: () => void
+  newSkillHint: string
+  hasSelection: boolean
+  isEditMode: boolean
+}>()
+
 const editSkillForm = reactive<SkillDraft>({
   id: '',
   name: '',
@@ -19,6 +26,8 @@ const ioMessage = ref('')
 const pendingImport = ref(false)
 const editReqInput = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const treeNameInput = ref(skillStore.skillTreeData.name)
+const treeMessage = ref('')
 const displayName = (id: string) => skillStore.skillTreeData.nodes.find((n) => n.id === id)?.name ?? id
 const hasActiveSkill = computed(() => Boolean(skillStore.activeSkill))
 
@@ -33,6 +42,14 @@ const resetEditSkillForm = () => {
   editMessage.value = ''
   editReqInput.value = ''
 }
+
+watch(
+  () => skillStore.skillTreeData.name,
+  (name) => {
+    treeNameInput.value = name
+  },
+  { immediate: true },
+)
 
 watch(
   () => skillStore.activeSkill,
@@ -64,6 +81,12 @@ const handleUpdate = () => {
   })
 
   editMessage.value = result.ok ? 'スキルを更新しました' : result.message ?? '更新に失敗しました'
+}
+
+const handleUpdateTreeName = () => {
+  treeMessage.value = ''
+  const result = skillStore.updateSkillTreeName(treeNameInput.value)
+  treeMessage.value = result.ok ? 'スキルツリー名を更新しました' : result.message ?? '更新に失敗しました'
 }
 
 const handleDelete = () => {
@@ -147,6 +170,49 @@ const handleFileChange = async (event: Event) => {
     </header>
 
     <div class="space-y-6">
+      <div class="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-semibold text-slate-100">スキルツリー設定</h3>
+            <p class="text-xs text-slate-400">名称編集と新規スキルの追加</p>
+          </div>
+          <button
+            class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            :disabled="!props.isEditMode || !props.hasSelection"
+            :title="!props.hasSelection ? '前提スキルを選択すると有効になります (Ctrl+クリック)' : 'Ctrl+I でも開けます'"
+            @click="props.startNewSkillFlow"
+          >
+            新規スキル追加 (Ctrl+I)
+          </button>
+        </div>
+        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label class="text-sm text-slate-200">
+            スキルツリー名
+            <input
+              v-model="treeNameInput"
+              class="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm focus:border-amber-300 focus:outline-none disabled:opacity-60"
+              :disabled="!skillStore.editMode"
+              type="text"
+            />
+          </label>
+          <div class="flex justify-end gap-2">
+            <button
+              class="rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-400/25 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              :disabled="!skillStore.editMode"
+              @click="handleUpdateTreeName"
+            >
+              名称を更新
+            </button>
+          </div>
+        </div>
+        <div class="mt-2 space-y-1 text-xs">
+          <p v-if="treeMessage" class="text-cyan-300">{{ treeMessage }}</p>
+          <p v-if="props.newSkillHint" class="text-amber-300">{{ props.newSkillHint }}</p>
+        </div>
+      </div>
+
       <div class="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-base font-semibold text-slate-100">選択中のスキルを編集</h3>

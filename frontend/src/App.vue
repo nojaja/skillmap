@@ -8,8 +8,21 @@ const skillStore = useSkillStore()
 const skillPointSystemEnabled = SKILL_POINT_SYSTEM_ENABLED
 const newSkillHint = ref('')
 
+const skillTreeName = computed(() => skillStore.skillTreeData.name || 'Skill Constellation')
+const isLargeScreen = ref(typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : true)
+const panelWidth = ref(420)
+const isResizingPanel = ref(false)
+const panelResizeStartX = ref(0)
+const panelResizeStartWidth = ref(0)
+const minPanelWidth = 320
+const maxPanelWidth = 720
+
 const isEditMode = computed(() => skillStore.editMode)
 const hasSelection = computed(() => skillStore.selectedSkillIds.length > 0)
+const panelStyle = computed(() => ({ width: isLargeScreen.value ? `${panelWidth.value}px` : '100%' }))
+
+let mediaQuery: MediaQueryList | null = null
+let mediaQueryChangeHandler: ((event: MediaQueryListEvent) => void) | null = null
 
 const toggleEditMode = async () => {
   await skillStore.toggleEditMode()
@@ -45,11 +58,59 @@ onMounted(() => {
   skillStore.loadSkillTree()
   skillStore.loadStatus()
   window.addEventListener('keydown', handleKeydown)
+  mediaQuery = window.matchMedia('(min-width: 1024px)')
+  const handleMediaChange = (event: MediaQueryListEvent) => {
+    isLargeScreen.value = event.matches
+  }
+  isLargeScreen.value = mediaQuery.matches
+  mediaQuery.addEventListener('change', handleMediaChange)
+  mediaQueryChangeHandler = handleMediaChange
+  window.addEventListener('mousemove', handlePanelResize)
+  window.addEventListener('mouseup', stopPanelResize)
+  window.addEventListener('touchmove', handlePanelResize, { passive: false })
+  window.addEventListener('touchend', stopPanelResize)
+  window.addEventListener('touchcancel', stopPanelResize)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('mousemove', handlePanelResize)
+  window.removeEventListener('mouseup', stopPanelResize)
+  window.removeEventListener('touchmove', handlePanelResize)
+  window.removeEventListener('touchend', stopPanelResize)
+  window.removeEventListener('touchcancel', stopPanelResize)
+  if (mediaQuery && mediaQueryChangeHandler) {
+    mediaQuery.removeEventListener('change', mediaQueryChangeHandler)
+  }
 })
+
+const startPanelResize = (event: MouseEvent | TouchEvent) => {
+  if (!isLargeScreen.value) return
+  const clientX = event instanceof MouseEvent ? event.clientX : event.touches[0]?.clientX
+  if (clientX === undefined) return
+  isResizingPanel.value = true
+  panelResizeStartX.value = clientX
+  panelResizeStartWidth.value = panelWidth.value
+  document.body.style.cursor = 'col-resize'
+}
+
+const handlePanelResize = (event: MouseEvent | TouchEvent) => {
+  if (!isResizingPanel.value) return
+  const clientX = event instanceof MouseEvent ? event.clientX : event.touches[0]?.clientX
+  if (clientX === undefined) return
+  if (event.cancelable) {
+    event.preventDefault()
+  }
+  const delta = panelResizeStartX.value - clientX
+  const nextWidth = Math.min(maxPanelWidth, Math.max(minPanelWidth, panelResizeStartWidth.value + delta))
+  panelWidth.value = Math.round(nextWidth)
+}
+
+const stopPanelResize = () => {
+  if (!isResizingPanel.value) return
+  isResizingPanel.value = false
+  document.body.style.cursor = ''
+}
 </script>
 
 <template>
@@ -59,11 +120,8 @@ onBeforeUnmount(() => {
       style="padding-top: calc(env(safe-area-inset-top, 0px) + 16px);"
     >
       <div>
-        <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">The Elder Scrolls V</p>
-        <h1 class="text-2xl font-semibold">Skyrim Skill Constellation</h1>
-        <p class="text-sm text-slate-400">
-          ドラッグで移動し、星をクリックしてスキルを習得します。編集モードではCtrl+クリックで前提スキルを複数選択できます。
-        </p>
+        <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">The Skill Constellation</p>
+        <h1 class="text-2xl font-semibold">{{ skillTreeName }}</h1>
       </div>
       <div class="flex flex-wrap items-center gap-3">
         <span
@@ -79,21 +137,11 @@ onBeforeUnmount(() => {
         >
           {{ isEditMode ? '編集モード完了 (Ctrl+E)' : '編集モード (Ctrl+E)' }}
         </button>
-        <button
-          class="hidden rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 md:inline-flex"
-          type="button"
-          :disabled="!isEditMode || !hasSelection"
-          :title="!hasSelection ? '前提スキルを選択すると有効になります (Ctrl+クリック)' : 'Ctrl+I でも開けます'"
-          @click="startNewSkillFlow"
-        >
-          新規スキル追加 (Ctrl+I)
-        </button>
         <div v-if="skillPointSystemEnabled" class="text-right">
           <p class="text-xs text-slate-400">残りスキルポイント</p>
           <p class="text-2xl font-bold text-cyan-300">{{ skillStore.availablePoints }}</p>
         </div>
       </div>
-      <p v-if="newSkillHint" class="text-sm text-amber-300">{{ newSkillHint }}</p>
     </header>
 
     <div class="flex flex-col gap-6 lg:flex-row">
@@ -102,9 +150,22 @@ onBeforeUnmount(() => {
       </div>
       <div
         v-if="isEditMode"
-        class="w-full border-t border-slate-800/70 px-6 pb-8 pt-4 lg:w-[420px] lg:border-l lg:border-t-0"
+        class="relative w-full border-t border-slate-800/70 px-6 pb-8 pt-4 lg:border-l lg:border-t-0"
+        :style="panelStyle"
       >
-        <SkillEditorPanel />
+        <div
+          class="absolute -left-1 top-0 hidden h-full w-4 cursor-col-resize select-none lg:block"
+          @mousedown.prevent="startPanelResize"
+          @touchstart.prevent="startPanelResize"
+        >
+          <div class="h-full w-[2px] bg-slate-700" />
+        </div>
+        <SkillEditorPanel
+          :start-new-skill-flow="startNewSkillFlow"
+          :new-skill-hint="newSkillHint"
+          :has-selection="hasSelection"
+          :is-edit-mode="isEditMode"
+        />
       </div>
     </div>
   </div>
