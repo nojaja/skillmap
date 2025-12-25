@@ -54,7 +54,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-gray-100">
-    <header class="flex flex-col gap-4 border-b border-slate-800 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+    <header
+      class="sticky top-0 z-30 flex flex-col gap-4 border-b border-slate-800 bg-slate-950/95 px-4 pb-4 pt-4 backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:px-6"
+      style="padding-top: calc(env(safe-area-inset-top, 0px) + 16px);"
+    >
       <div>
         <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">The Elder Scrolls V</p>
         <h1 class="text-2xl font-semibold">Skyrim Skill Constellation</h1>
@@ -70,14 +73,14 @@ onBeforeUnmount(() => {
           {{ isEditMode ? '編集モード中 (Ctrl+E で完了)' : '閲覧モード (Ctrl+E で編集開始)' }}
         </span>
         <button
-          class="rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/25 transition hover:bg-amber-300"
+          class="hidden rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-500/25 transition hover:bg-amber-300 md:inline-flex"
           type="button"
           @click="toggleEditMode"
         >
           {{ isEditMode ? '編集モード完了 (Ctrl+E)' : '編集モード (Ctrl+E)' }}
         </button>
         <button
-          class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+          class="hidden rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 md:inline-flex"
           type="button"
           :disabled="!isEditMode || !hasSelection"
           :title="!hasSelection ? '前提スキルを選択すると有効になります (Ctrl+クリック)' : 'Ctrl+I でも開けます'"
