@@ -214,6 +214,10 @@ export const normalizeSkillTree = (payload?: Partial<SkillTree>, fallback: Skill
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt, fallback.updatedAt),
+    sourceUrl:
+      typeof payload?.sourceUrl === 'string' && payload.sourceUrl.trim().length > 0
+        ? payload.sourceUrl.trim()
+        : fallback.sourceUrl,
   }
 }
 

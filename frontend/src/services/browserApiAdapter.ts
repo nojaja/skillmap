@@ -1,5 +1,5 @@
 import { normalizeSkillTree, normalizeStatus, defaultSkillTree } from './skillNormalizer'
-import { type SkillStatus, type SkillTree } from '../types/skill'
+import { type SkillStatus, type SkillTree, type SkillTreeSummary } from '../types/skill'
 
 const BASE_PATH = import.meta.env.BASE_URL ?? '/'
 const SW_PATH = `${BASE_PATH}sw.js`
@@ -13,6 +13,8 @@ type SkillmapCommand =
   | 'save-skill-tree'
   | 'export'
   | 'import'
+  | 'delete-skill-tree'
+  | 'list-skill-trees'
 
 type SkillmapResponse<T> = {
   ok: boolean
@@ -193,6 +195,44 @@ export const exportSkillTreeFromSW = async (treeId: string): Promise<SkillTree> 
 export const importSkillTreeToSW = async (tree: SkillTree): Promise<SkillTree> => {
   const response = await callServiceWorker<SkillTree>('import', tree.id, { tree })
   return normalizeSkillTree(response)
+}
+
+/**
+ * スキルツリー一覧を取得する。
+ * @returns スキルツリーサマリの配列
+ */
+export const listSkillTreesFromSW = async (): Promise<SkillTreeSummary[]> => {
+  try {
+    const response = await callServiceWorker<SkillTreeSummary[]>('list-skill-trees', defaultSkillTree.id)
+    return response.map((entry) => ({
+      id: typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id.trim() : defaultSkillTree.id,
+      name: typeof entry.name === 'string' && entry.name.trim().length > 0 ? entry.name.trim() : 'Skill Tree',
+      updatedAt: typeof entry.updatedAt === 'string' && entry.updatedAt.length > 0 ? entry.updatedAt : new Date().toISOString(),
+      nodeCount: Number.isFinite(entry.nodeCount) ? Number(entry.nodeCount) : 0,
+      sourceUrl:
+        typeof entry.sourceUrl === 'string' && entry.sourceUrl.trim().length > 0 ? entry.sourceUrl.trim() : undefined,
+    }))
+  } catch (error) {
+    console.info('list-skill-trees が未対応のためデフォルトのみを返します')
+    return [
+      {
+        id: defaultSkillTree.id,
+        name: defaultSkillTree.name,
+        updatedAt: defaultSkillTree.updatedAt,
+        nodeCount: defaultSkillTree.nodes.length,
+      },
+    ]
+  }
+}
+
+/**
+ * 指定IDのスキルツリーを削除する。
+ * @param treeId 対象ツリーID
+ * @returns 削除結果
+ */
+export const deleteSkillTreeFromSW = async (treeId: string): Promise<{ ok: boolean }> => {
+  const response = await callServiceWorker<{ ok: boolean }>('delete-skill-tree', treeId)
+  return response
 }
 
 /**

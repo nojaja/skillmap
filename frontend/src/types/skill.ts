@@ -29,6 +29,15 @@ export interface SkillTree {
   nodes: SkillNode[]
   connections: SkillConnection[]
   updatedAt: string
+  sourceUrl?: string
+}
+
+export interface SkillTreeSummary {
+  id: string
+  name: string
+  updatedAt: string
+  nodeCount: number
+  sourceUrl?: string
 }
 
 export interface SkillStatus {
