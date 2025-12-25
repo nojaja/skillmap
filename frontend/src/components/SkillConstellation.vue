@@ -32,11 +32,8 @@ const isConnectionUnlocked = (from: string, to: string) =>
 
 const displayName = (id: string) => nodes.value.find((n) => n.id === id)?.name ?? id
 
-const isRootNode = (node: SkillNode) => !node.reqs || node.reqs.length === 0
-
 const getVariant = (node: SkillNode) => {
   if (skillStore.isUnlocked(node.id)) return 'unlocked'
-  if (isRootNode(node)) return 'root'
   if (skillStore.canUnlock(node.id)) return 'available'
   return 'locked'
 }
