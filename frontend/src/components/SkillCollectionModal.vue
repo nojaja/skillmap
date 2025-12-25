@@ -140,11 +140,11 @@ const handleExport = async (treeId: string) => {
   <teleport to="body">
     <div
       v-if="visible"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-8 backdrop-blur"
+      class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/80 px-4 py-8 backdrop-blur"
       aria-modal="true"
       role="dialog"
     >
-      <div class="w-full max-w-5xl rounded-xl border border-slate-800 bg-slate-900 shadow-2xl">
+      <div class="w-full max-w-5xl rounded-xl border border-slate-800 bg-slate-900 shadow-2xl" style="max-height: calc(100vh - 3rem); overflow-y: auto;">
         <div class="flex items-start justify-between gap-4 border-b border-slate-800 px-6 py-4">
           <div>
             <p class="text-xs uppercase tracking-[0.2em] text-cyan-300">Collection</p>

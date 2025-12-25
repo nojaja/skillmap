@@ -18,9 +18,6 @@ const panelResizeStartX = ref(0)
 const panelResizeStartWidth = ref(0)
 const minPanelWidth = 320
 const maxPanelWidth = 720
-const touchStartX = ref(0)
-const touchStartY = ref(0)
-const touchStartTime = ref(0)
 
 const generateTreeId = () => {
   const fallback = () => `tree-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
@@ -181,35 +178,6 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 }
 
-const onTouchStartSwipe = (event: TouchEvent) => {
-  if (isLargeScreen.value) return
-  const touch = event.touches[0]
-  if (!touch) return
-  touchStartX.value = touch.clientX
-  touchStartY.value = touch.clientY
-  touchStartTime.value = Date.now()
-}
-
-const onTouchEndSwipe = (event: TouchEvent) => {
-  if (isLargeScreen.value) return
-  const touch = event.changedTouches[0]
-  if (!touch) return
-  const dx = touch.clientX - touchStartX.value
-  const dy = touch.clientY - touchStartY.value
-  const dt = Date.now() - touchStartTime.value
-  const minDistance = Math.max(60, (window.innerWidth * 0.8) / 10)
-  const maxVerticalDrift = 80
-  if (Math.abs(dx) < minDistance) return
-  if (Math.abs(dy) > maxVerticalDrift) return
-  if (dt > 800) return
-
-  if (dx > 0) {
-    goPrevTree()
-  } else {
-    goNextTree()
-  }
-}
-
 onMounted(() => {
   skillStore.loadSkillTree()
   skillStore.loadStatus()
@@ -274,8 +242,6 @@ const stopPanelResize = () => {
 <template>
   <div
     class="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-gray-100"
-    @touchstart.passive="onTouchStartSwipe"
-    @touchend.passive="onTouchEndSwipe"
   >
     <header
       class="sticky top-0 z-30 flex flex-col gap-4 border-b border-slate-800 bg-slate-950/95 px-4 pb-4 pt-4 backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:px-6"
