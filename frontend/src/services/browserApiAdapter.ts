@@ -1,7 +1,8 @@
 import { normalizeSkillTree, normalizeStatus, defaultSkillTree } from './skillNormalizer'
 import { type SkillStatus, type SkillTree } from '../types/skill'
 
-const SW_PATH = '/sw.js'
+const BASE_PATH = import.meta.env.BASE_URL ?? '/'
+const SW_PATH = `${BASE_PATH}sw.js`
 const CHANNEL_NAME = 'skillmap-sync'
 const MESSAGE_TIMEOUT_MS = 5000
 
@@ -71,10 +72,10 @@ const ensureServiceWorkerRegistration = async (): Promise<ServiceWorkerRegistrat
     throw new Error('OPFS がサポートされていません')
   }
 
-  const existing = await navigator.serviceWorker.getRegistration()
+  const existing = await navigator.serviceWorker.getRegistration(BASE_PATH)
   if (existing) return existing
 
-  return navigator.serviceWorker.register(SW_PATH, { type: 'module', scope: '/' })
+  return navigator.serviceWorker.register(SW_PATH, { type: 'module', scope: BASE_PATH })
 }
 
 /**
