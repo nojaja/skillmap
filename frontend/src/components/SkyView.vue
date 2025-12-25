@@ -91,11 +91,23 @@ onBeforeUnmount(() => {
       @touchmove.prevent="onTouchMove"
     >
       <div
-        class="h-full w-full transition-transform duration-75"
-        :style="{ transform: `translate(${offset.x}px, ${offset.y}px)` }"
+        class="h-full w-full transition-transform duration-75 sky-inner"
+        :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(var(--sky-scale, 1))` }"
       >
         <SkillConstellation />
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.sky-inner {
+  transform-origin: center;
+}
+
+@media (max-width: 768px) {
+  .sky-inner {
+    --sky-scale: 1.12;
+  }
+}
+</style>

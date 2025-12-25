@@ -244,6 +244,7 @@ onBeforeUnmount(() => {
       ></div>
 
       <!-- 星本体 -->
+      <div class="hit-area"></div>
       <div
         class="star-core"
         :class="[
@@ -257,7 +258,10 @@ onBeforeUnmount(() => {
       ></div>
 
       <!-- テキスト -->
-      <div class="pointer-events-none absolute left-1/2 top-[-32px] -translate-x-1/2 whitespace-nowrap text-sm font-medium text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" style="text-shadow: 0 0 8px rgba(77,238,234,0.6);">
+      <div
+        class="pointer-events-none absolute left-1/2 top-[-60px] -translate-x-1/2 whitespace-nowrap text-lg font-semibold text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] sm:top-[-32px] sm:text-base sm:font-medium"
+        style="text-shadow: 0 0 8px rgba(77,238,234,0.6);"
+      >
         {{ node.name }}
       </div>
       <div
@@ -307,6 +311,17 @@ onBeforeUnmount(() => {
   position: relative;
   transition: box-shadow 0.55s ease, transform 0.55s ease;
   z-index: 10;
+}
+
+.hit-area {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  z-index: 5;
 }
 
 /* レンズフレア (擬似要素) */
