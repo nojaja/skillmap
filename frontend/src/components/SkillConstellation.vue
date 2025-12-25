@@ -53,15 +53,30 @@ const getAnimationDelay = (id: string) => {
   return `${-Math.abs(hash % 4000) / 1000}s`
 }
 
-const beginDrag = (node: SkillNode, event: MouseEvent) => {
+const startDrag = (node: SkillNode, startX: number, startY: number) => {
   if (!isEditMode.value) return
-  event.stopPropagation()
-  event.stopImmediatePropagation?.()
   dragState.id = node.id
-  dragState.startX = event.clientX
-  dragState.startY = event.clientY
+  dragState.startX = startX
+  dragState.startY = startY
   dragState.nodeStartX = node.x
   dragState.nodeStartY = node.y
+}
+
+const handleMouseDown = (node: SkillNode, event: MouseEvent) => {
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
+  handleLongPressStart(node)
+  beginPress(node)
+  startDrag(node, event.clientX, event.clientY)
+}
+
+const handleTouchStart = (node: SkillNode, event: TouchEvent) => {
+  const touch = event.touches[0]
+  if (!touch) return
+  event.stopPropagation()
+  handleLongPressStart(node)
+  beginPress(node)
+  startDrag(node, touch.clientX, touch.clientY)
 }
 
 const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
@@ -121,11 +136,24 @@ const endPress = () => {
   pressingNodeId.value = null
 }
 
-const handleMouseMove = (event: MouseEvent) => {
+const updateDragPosition = (clientX: number, clientY: number) => {
   if (!isEditMode.value || !dragState.id) return
-  const dx = event.clientX - dragState.startX
-  const dy = event.clientY - dragState.startY
+  const dx = clientX - dragState.startX
+  const dy = clientY - dragState.startY
   skillStore.moveSkill(dragState.id, dragState.nodeStartX + dx, dragState.nodeStartY + dy)
+}
+
+const handleMouseMove = (event: MouseEvent) => {
+  updateDragPosition(event.clientX, event.clientY)
+}
+
+const handleTouchMove = (event: TouchEvent) => {
+  const touch = event.touches[0]
+  if (!touch) return
+  if (dragState.id) {
+    event.preventDefault()
+  }
+  updateDragPosition(touch.clientX, touch.clientY)
 }
 
 const endDrag = () => {
@@ -141,11 +169,17 @@ watch(isEditMode, (editing) => {
 onMounted(() => {
   window.addEventListener('mousemove', handleMouseMove)
   window.addEventListener('mouseup', endDrag)
+  window.addEventListener('touchmove', handleTouchMove, { passive: false })
+  window.addEventListener('touchend', endDrag)
+  window.addEventListener('touchcancel', endDrag)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', endDrag)
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', endDrag)
+  window.removeEventListener('touchcancel', endDrag)
 })
 </script>
 
@@ -193,9 +227,12 @@ onBeforeUnmount(() => {
       :key="node.id"
       class="absolute -translate-x-1/2 -translate-y-1/2 transform cursor-pointer"
       :style="{ left: `${node.x}px`, top: `${node.y}px` }"
-      @mousedown.prevent="(event) => { beginDrag(node, event); handleLongPressStart(node); beginPress(node) }"
+      @mousedown.prevent="(event) => handleMouseDown(node, event)"
+      @touchstart.prevent="(event) => handleTouchStart(node, event)"
       @mouseup="() => { handleLongPressEnd(); endPress() }"
       @mouseleave="() => { handleLongPressEnd(); endPress() }"
+      @touchend.stop="() => { handleLongPressEnd(); endPress(); endDrag() }"
+      @touchcancel.stop="() => { handleLongPressEnd(); endPress(); endDrag() }"
       @click="(event) => handleNodeClick(node, event)"
       @dblclick.prevent="() => handleActivation(node)"
     >
