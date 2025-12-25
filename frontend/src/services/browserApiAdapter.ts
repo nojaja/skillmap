@@ -44,11 +44,12 @@ const supportsOPFS = (): boolean =>
  */
 const waitForController = async (): Promise<void> => {
   if (navigator.serviceWorker.controller) return
-  // eslint-disable-next-line jsdoc/require-jsdoc
-  await new Promise<void>((resolve, reject) => {
+
+  await new Promise<void>((resolve) => {
     const timer = window.setTimeout(() => {
       navigator.serviceWorker.removeEventListener('controllerchange', onChange)
-      reject(new Error('Service Worker がコントロール権を取得できませんでした'))
+      // 取得できなくても処理を継続する（Pages環境では初回ロード時にcontrollerが付かないことがあるため）
+      resolve()
     }, MESSAGE_TIMEOUT_MS)
     // eslint-disable-next-line jsdoc/require-jsdoc
     const onChange = () => {
