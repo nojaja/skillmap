@@ -50,6 +50,7 @@ describe('skillStore normalization helpers', () => {
         { id: 'base', name: 'base', description: '', x: 0, y: 0, cost: 0, reqs: [] },
       ],
       connections: [],
+      updatedAt: '2023-01-01T00:00:00.000Z',
     }
 
     const normalized = normalizeSkillTree({ name: '' }, fallback)
@@ -68,6 +69,7 @@ describe('skillStore normalization helpers', () => {
         { id: 'n2', x: 2, y: 3, name: 'N2', cost: 1, description: 'desc2', reqs: [] },
       ],
       connections: [{ from: 'n1', to: 'n2' }],
+      updatedAt: '2023-01-02T00:00:00.000Z',
     })
 
     expect(normalized.id).toBe('custom')

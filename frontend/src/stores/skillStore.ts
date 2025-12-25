@@ -1,169 +1,63 @@
-import axios from 'axios'
 import { defineStore } from 'pinia'
 
-import defaultSkillTreeJson from '../assets/default-skill-tree.json'
+import {
+  defaultSkillTree,
+  normalizeConnections,
+  normalizeNodes,
+  normalizeSkillTree,
+  normalizeStatus,
+} from '../services/skillNormalizer'
+import {
+  ensureServiceWorker,
+  exportSkillTreeFromSW,
+  getSkillTreeFromSW,
+  getStatusFromSW,
+  importSkillTreeToSW,
+  saveSkillTreeToSW,
+  saveStatusToSW,
+  subscribeSyncEvents,
+} from '../services/browserApiAdapter'
+import {
+  DEFAULT_AVAILABLE_POINTS,
+  type SkillDraft,
+  type SkillNode,
+  type SkillStatus,
+  type SkillTree,
+} from '../types/skill'
 
 export const SKILL_POINT_SYSTEM_ENABLED = false
 
-export interface SkillNode {
-  id: string
-  x: number
-  y: number
-  name: string
-  cost: number
-  description: string
-  reqs?: string[]
-}
+export { normalizeConnections, normalizeNodes, normalizeSkillTree } from '../services/skillNormalizer'
+export type { SkillConnection, SkillDraft, SkillNode, SkillStatus, SkillTree } from '../types/skill'
 
-export interface SkillDraft {
-  id: string
-  x: number
-  y: number
-  name: string
-  cost: number
-  description: string
-  reqs: string[]
-}
-
-export interface SkillConnection {
-  from: string
-  to: string
-}
-
-export interface SkillTree {
-  id: string
-  name: string
-  nodes: SkillNode[]
-  connections: SkillConnection[]
-}
-
-const api = axios.create({
-  baseURL: '/api',
+const cloneSkillTree = (tree: SkillTree): SkillTree => ({
+  ...tree,
+  nodes: tree.nodes.map((node) => ({ ...node, reqs: node.reqs ? [...node.reqs] : [] })),
+  connections: tree.connections.map((connection) => ({ ...connection })),
 })
 
-const fallbackSkillTree = defaultSkillTreeJson as SkillTree
-
-/**
- * 処理名: スキルノード正規化
- *
- * 処理概要: 任意の配列からスキルノードを抽出し、重複や不正値を除去したうえで座標・依存関係を正規化する。
- *
- * 実装理由: クライアント入力や外部データの揺らぎを吸収し、状態管理で扱える安全な構造を得るため。
- */
-const normalizeNodes = (rawNodes: unknown[]): SkillDraft[] => {
-  if (!Array.isArray(rawNodes)) return []
-
-  const seen = new Set<string>()
-  return rawNodes.flatMap((node) => {
-    if (!node || typeof node !== 'object' || typeof (node as SkillNode).id !== 'string') return []
-
-    const id = (node as SkillNode).id.trim()
-    if (!id || seen.has(id)) return []
-
-    const reqs = Array.isArray((node as SkillNode).reqs)
-      ? Array.from(
-          new Set(
-            ((node as SkillNode).reqs as unknown[]).filter(
-              (req): req is string => typeof req === 'string' && req.trim().length > 0,
-            ),
-          ),
-        )
-      : []
-
-    const description =
-      typeof (node as SkillNode).description === 'string'
-        ? (node as SkillNode).description.trim()
-        : ''
-
-    seen.add(id)
-    return [
-      {
-        id,
-        x: Number.isFinite(Number((node as SkillNode).x)) ? Number((node as SkillNode).x) : 0,
-        y: Number.isFinite(Number((node as SkillNode).y)) ? Number((node as SkillNode).y) : 0,
-        name:
-          typeof (node as SkillNode).name === 'string' && (node as SkillNode).name.trim().length > 0
-            ? (node as SkillNode).name.trim()
-            : id,
-        cost: Math.max(0, Number.isFinite(Number((node as SkillNode).cost)) ? Number((node as SkillNode).cost) : 0),
-        description,
-        reqs,
-      },
-    ]
-  })
+const toSerializableSkillTree = (tree: SkillTree): SkillTree => {
+  // structuredCloneがProxyを含む場合に失敗するため、常にJSON経由でシリアライズ可能な形にする
+  return JSON.parse(JSON.stringify(tree)) as SkillTree
 }
 
-/**
- * 処理名: スキル接続正規化
- *
- * 処理概要: ノード集合と接続配列を受け取り、自己参照・重複・存在しないノードへの接続を除去して正規化する。
- *
- * 実装理由: グラフ構造の一貫性を保ち、描画や保存時に不整合が起きないようにするため。
- */
-const normalizeConnections = (
-  nodes: SkillNode[],
-  rawConnections: unknown[],
-): SkillConnection[] => {
-  const nodeIds = new Set(nodes.map((node) => node.id))
-  const merged = Array.isArray(rawConnections) ? [...rawConnections] : []
-
-  nodes.forEach((node) => {
-    const reqs = Array.isArray(node.reqs) ? node.reqs : []
-    reqs.forEach((req) => merged.push({ from: req, to: node.id }))
-  })
-
-  const seen = new Set<string>()
-  const connections: SkillConnection[] = []
-
-  merged.forEach((connection) => {
-    if (!connection || typeof connection !== 'object') return
-    const from = typeof (connection as SkillConnection).from === 'string' ? (connection as SkillConnection).from : ''
-    const to = typeof (connection as SkillConnection).to === 'string' ? (connection as SkillConnection).to : ''
-    const key = `${from}->${to}`
-
-    if (!from || !to || from === to) return
-    if (!nodeIds.has(from) || !nodeIds.has(to)) return
-    if (seen.has(key)) return
-
-    seen.add(key)
-    connections.push({ from, to })
-  })
-
-  return connections
+const toSerializableStatus = (status: SkillStatus): SkillStatus => {
+  return JSON.parse(JSON.stringify(status)) as SkillStatus
 }
-
-/**
- * 処理名: スキルツリー正規化
- *
- * 処理概要: 任意のスキルツリーペイロードを既定値と突き合わせ、ID・名称・ノード・接続を安全に整形する。
- *
- * 実装理由: APIからのレスポンスやローカルファイル読込結果を常に同じ構造で扱うため。
- */
-const normalizeSkillTree = (payload?: Partial<SkillTree>, fallback: SkillTree = fallbackSkillTree): SkillTree => {
-  const nodes = normalizeNodes((payload?.nodes as unknown[]) ?? fallback.nodes)
-  const connections = normalizeConnections(nodes, (payload?.connections as unknown[]) ?? fallback.connections)
-
-  return {
-    id: typeof payload?.id === 'string' && payload.id.trim().length > 0 ? payload.id : fallback.id,
-    name: typeof payload?.name === 'string' && payload.name.trim().length > 0 ? payload.name.trim() : fallback.name,
-    nodes,
-    connections,
-  }
-}
-
-const defaultSkillTree = normalizeSkillTree(defaultSkillTreeJson as SkillTree, fallbackSkillTree)
-
-export { normalizeNodes, normalizeConnections, normalizeSkillTree }
 
 export const useSkillStore = defineStore('skill', {
   state: () => ({
-    availablePoints: 3,
+    currentTreeId: defaultSkillTree.id,
+    availablePoints: DEFAULT_AVAILABLE_POINTS,
     unlockedSkillIds: [] as string[],
-    skillTreeData: normalizeSkillTree(),
+    skillTreeData: cloneSkillTree(defaultSkillTree),
+    statusUpdatedAt: defaultSkillTree.updatedAt,
+    skillTreeUpdatedAt: defaultSkillTree.updatedAt,
     loading: false,
     editMode: false,
     selectedSkillIds: [] as string[],
     activeSkillId: null as string | null,
+    syncUnsubscribe: null as null | (() => void),
   }),
   getters: {
     /**
@@ -178,6 +72,22 @@ export const useSkillStore = defineStore('skill', {
     },
   },
   actions: {
+    setupSyncListener() {
+      if (this.syncUnsubscribe) return
+      this.syncUnsubscribe = subscribeSyncEvents((payload) => {
+        if (payload.treeId !== this.currentTreeId) return
+        if (payload.event === 'skill-tree-updated') {
+          void this.loadSkillTree(this.currentTreeId)
+        }
+        if (payload.event === 'status-updated') {
+          void this.loadStatus(this.currentTreeId)
+        }
+      })
+    },
+    setTreeId(treeId: string) {
+      const safeId = treeId?.trim() || defaultSkillTree.id
+      this.currentTreeId = safeId
+    },
     /**
      * 処理名: 空き座標の算出
      *
@@ -251,7 +161,12 @@ export const useSkillStore = defineStore('skill', {
     getPrerequisites(skillId: string) {
       const node = this.skillTreeData.nodes.find((n) => n.id === skillId)
       if (!node) return []
-      return Array.isArray(node.reqs) ? node.reqs : []
+      const reqsFromNode = Array.isArray(node.reqs) ? node.reqs : []
+      const reqsFromConnections = this.skillTreeData.connections
+        .filter((conn) => conn.to === skillId)
+        .map((conn) => conn.from)
+
+      return Array.from(new Set([...reqsFromNode, ...reqsFromConnections]))
     },
     /**
      * 処理名: アンロック判定
@@ -327,6 +242,7 @@ export const useSkillStore = defineStore('skill', {
 
       this.availablePoints -= node.cost
       this.unlockedSkillIds.push(skillId)
+      void this.saveProgress()
       return true
     },
     /**
@@ -344,6 +260,7 @@ export const useSkillStore = defineStore('skill', {
 
       this.availablePoints += node.cost
       this.unlockedSkillIds = this.unlockedSkillIds.filter((id) => id !== skillId)
+      void this.saveProgress()
       return true
     },
     /**
@@ -587,14 +504,20 @@ export const useSkillStore = defineStore('skill', {
      *
      * 実装理由: 初期表示やリロード時に最新データを取得しつつ、ネットワーク障害でも動作させるため。
      */
-    async loadSkillTree() {
+    async loadSkillTree(treeId?: string) {
       this.loading = true
+      const targetTreeId = treeId?.trim() || this.currentTreeId || defaultSkillTree.id
       try {
-        const { data } = await api.get('/skill-tree')
-        this.skillTreeData = normalizeSkillTree(data)
+        await ensureServiceWorker()
+        const skillTree = await getSkillTreeFromSW(targetTreeId)
+        this.skillTreeData = normalizeSkillTree(skillTree, defaultSkillTree)
+        this.currentTreeId = this.skillTreeData.id
+        this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
+        this.setupSyncListener()
       } catch (error) {
         console.error('スキルツリーの取得に失敗しました', error)
-        this.skillTreeData = defaultSkillTree
+        this.skillTreeData = normalizeSkillTree({ id: targetTreeId }, defaultSkillTree)
+        this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
       } finally {
         this.loading = false
       }
@@ -608,8 +531,17 @@ export const useSkillStore = defineStore('skill', {
      */
     async saveSkillTree() {
       try {
+        await ensureServiceWorker()
         this.refreshConnections()
-        await api.post('/skill-tree', this.skillTreeData)
+        const payload: SkillTree = toSerializableSkillTree({
+          ...this.skillTreeData,
+          id: this.currentTreeId,
+          updatedAt: new Date().toISOString(),
+        })
+        const saved = await saveSkillTreeToSW(payload)
+        this.skillTreeData = normalizeSkillTree(saved, defaultSkillTree)
+        this.currentTreeId = this.skillTreeData.id
+        this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
       } catch (error) {
         console.error('スキルツリーの保存に失敗しました', error)
       }
@@ -624,8 +556,7 @@ export const useSkillStore = defineStore('skill', {
     async exportSkillTree() {
       try {
         this.refreshConnections()
-        const { data } = await api.get('/skill-tree/export')
-        const normalized = normalizeSkillTree(data, defaultSkillTree)
+        const normalized = await exportSkillTreeFromSW(this.currentTreeId)
         const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
@@ -649,9 +580,14 @@ export const useSkillStore = defineStore('skill', {
         const content = await file.text()
         const parsed = JSON.parse(content)
         const normalized = normalizeSkillTree(parsed, defaultSkillTree)
-        await api.post('/skill-tree/import', normalized)
-        this.skillTreeData = normalized
+        const imported = await importSkillTreeToSW(
+          toSerializableSkillTree({ ...normalized, updatedAt: new Date().toISOString() }),
+        )
+        this.skillTreeData = normalizeSkillTree(imported, defaultSkillTree)
+        this.currentTreeId = this.skillTreeData.id
+        this.skillTreeUpdatedAt = this.skillTreeData.updatedAt
         this.clearSelection()
+        await this.loadStatus(this.currentTreeId)
       } catch (error) {
         console.error('スキルツリーのインポートに失敗しました', error)
         throw error
@@ -679,20 +615,22 @@ export const useSkillStore = defineStore('skill', {
      *
      * 実装理由: サーバーとクライアントのステータスを同期させるため。
      */
-    async loadStatus() {
+    async loadStatus(treeId?: string) {
       this.loading = true
+      const targetTreeId = treeId?.trim() || this.currentTreeId || defaultSkillTree.id
       try {
-        const { data } = await api.get('/status')
-        if (typeof data.availablePoints === 'number') {
-          this.availablePoints = data.availablePoints
-        }
-        if (Array.isArray(data.unlockedSkillIds)) {
-          this.unlockedSkillIds = data.unlockedSkillIds.filter(
-            (id: unknown): id is string => typeof id === 'string',
-          )
-        }
+        await ensureServiceWorker()
+        const status = await getStatusFromSW(targetTreeId)
+        this.availablePoints = status.availablePoints
+        this.unlockedSkillIds = status.unlockedSkillIds
+        this.statusUpdatedAt = status.updatedAt
+        this.setupSyncListener()
       } catch (error) {
         console.error('ステータスの取得に失敗しました', error)
+        const fallback = normalizeStatus(targetTreeId)
+        this.availablePoints = fallback.availablePoints
+        this.unlockedSkillIds = fallback.unlockedSkillIds
+        this.statusUpdatedAt = fallback.updatedAt
       } finally {
         this.loading = false
       }
@@ -706,10 +644,17 @@ export const useSkillStore = defineStore('skill', {
      */
     async saveProgress() {
       try {
-        await api.post('/save', {
+        await ensureServiceWorker()
+        const status: SkillStatus = {
+          treeId: this.currentTreeId,
           availablePoints: this.availablePoints,
           unlockedSkillIds: this.unlockedSkillIds,
-        })
+          updatedAt: new Date().toISOString(),
+        }
+        const saved = await saveStatusToSW(toSerializableStatus(status))
+        this.availablePoints = saved.availablePoints
+        this.unlockedSkillIds = saved.unlockedSkillIds
+        this.statusUpdatedAt = saved.updatedAt
       } catch (error) {
         console.error('進行状況の保存に失敗しました', error)
       }

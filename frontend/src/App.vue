@@ -89,13 +89,6 @@ onBeforeUnmount(() => {
           <p class="text-xs text-slate-400">残りスキルポイント</p>
           <p class="text-2xl font-bold text-cyan-300">{{ skillStore.availablePoints }}</p>
         </div>
-        <button
-          class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400"
-          type="button"
-          @click="skillStore.saveProgress"
-        >
-          進行状況を保存
-        </button>
       </div>
       <p v-if="newSkillHint" class="text-sm text-amber-300">{{ newSkillHint }}</p>
     </header>
