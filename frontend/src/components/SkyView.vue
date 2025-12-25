@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import SkillConstellation from './SkillConstellation.vue'
-import { useSkillStore } from '../stores/skillStore'
-
-const skillStore = useSkillStore()
 
 const offset = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
