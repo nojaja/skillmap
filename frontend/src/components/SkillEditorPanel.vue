@@ -27,6 +27,14 @@ const treeNameInput = ref(skillStore.skillTreeData.name)
 const treeMessage = ref('')
 const displayName = (id: string) => skillStore.skillTreeData.nodes.find((n) => n.id === id)?.name ?? id
 const hasActiveSkill = computed(() => Boolean(skillStore.activeSkill))
+const onReqInputFocus = () => {
+  skillStore.setDependencyInputFocus(true)
+}
+const onReqInputBlur = () => {
+  window.setTimeout(() => {
+    skillStore.setDependencyInputFocus(false)
+  }, 0)
+}
 
 const resetEditSkillForm = () => {
   editSkillForm.id = ''
@@ -109,6 +117,16 @@ const addReqFromInput = () => {
   editSkillForm.reqs = Array.from(new Set([...editSkillForm.reqs, ...tokens]))
   editReqInput.value = ''
 }
+
+watch(
+  () => skillStore.dependencyInputSelectionToken,
+  () => {
+    if (!skillStore.dependencyInputSelectedId) return
+    if (!skillStore.editMode || !hasActiveSkill.value) return
+    editReqInput.value = skillStore.dependencyInputSelectedId
+    addReqFromInput()
+  },
+)
 
 const removeReq = (id: string) => {
   editSkillForm.reqs = editSkillForm.reqs.filter((req) => req !== id)
@@ -269,6 +287,8 @@ const removeReq = (id: string) => {
               :disabled="!skillStore.editMode || !hasActiveSkill"
               placeholder="依存スキルIDを入力し Enter / , で追加"
               type="text"
+              @focus="onReqInputFocus"
+              @blur="onReqInputBlur"
               @keydown.enter.prevent="addReqFromInput"
               @keydown.space.stop
               @keydown.,.prevent="addReqFromInput"

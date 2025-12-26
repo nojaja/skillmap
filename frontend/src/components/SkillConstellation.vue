@@ -103,6 +103,10 @@ const handleTouchEnd = (node: SkillNode, event: TouchEvent) => {
 const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
   event.stopPropagation()
   if (isEditMode.value) {
+    if (skillStore.dependencyInputFocused) {
+      skillStore.emitDependencyInputSelection(node.id)
+      return
+    }
     const multiSelect = event.ctrlKey || event.metaKey
     skillStore.toggleSelection(node.id, multiSelect)
     return

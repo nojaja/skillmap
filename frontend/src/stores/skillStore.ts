@@ -62,6 +62,9 @@ export const useSkillStore = defineStore('skill', {
     editMode: false,
     selectedSkillIds: [] as string[],
     activeSkillId: null as string | null,
+    dependencyInputFocused: false,
+    dependencyInputSelectedId: null as string | null,
+    dependencyInputSelectionToken: 0,
     syncUnsubscribe: null as null | (() => void),
   }),
   getters: {
@@ -350,6 +353,15 @@ export const useSkillStore = defineStore('skill', {
       if (skillId && !this.selectedSkillIds.includes(skillId)) {
         this.selectedSkillIds = [skillId]
       }
+    },
+    setDependencyInputFocus(focused: boolean) {
+      this.dependencyInputFocused = focused
+    },
+    emitDependencyInputSelection(skillId: string) {
+      if (!this.editMode) return
+      if (!this.activeSkillId) return
+      this.dependencyInputSelectedId = skillId
+      this.dependencyInputSelectionToken += 1
     },
     /**
      * 処理名: 選択クリア
