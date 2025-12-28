@@ -10,6 +10,7 @@ const pinia = createPinia()
 app.use(pinia)
 app.mount('#app')
 
-void ensureServiceWorker().catch((error) => {
-	console.error('Service Worker の登録に失敗しました', error)
+void ensureServiceWorker().catch((error: unknown) => {
+	const reason = error instanceof Error ? error : String(error)
+	console.error('Service Worker の登録に失敗しました', reason)
 })

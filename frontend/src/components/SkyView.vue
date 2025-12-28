@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import SkillConstellation from './SkillConstellation.vue'
+import SkyrimLevelGauge from './SkyrimLevelGauge.vue'
 
 const offset = ref({ x: 0, y: 0 })
 const scale = ref(window.matchMedia('(max-width: 768px)').matches ? 1.12 : 1)
@@ -120,6 +121,7 @@ onBeforeUnmount(() => {
         radial-gradient(circle at 80% 20%, rgba(76, 29, 149, 0.15) 0%, transparent 50%);
     "
   >
+    <SkyrimLevelGauge />
     <div
       class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle,_rgba(14,165,233,0.05)_0,_rgba(0,0,0,0)_70%)]"
     />
