@@ -1,7 +1,24 @@
 import { normalizeSkillTree, normalizeStatus, defaultSkillTree } from './skillNormalizer'
 import { type SkillStatus, type SkillTree, type SkillTreeSummary } from '../types/skill'
 
-const BASE_PATH = import.meta.env.BASE_URL ?? '/'
+const normalizeBase = (value?: string | null): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.endsWith('/') ? trimmed : `${trimmed}/`
+}
+
+const resolveBasePath = (): string => {
+  const nodeBase = normalizeBase(
+    (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.BASE_URL ?? undefined,
+  )
+  const docBase = normalizeBase(
+    typeof document !== 'undefined' ? new URL(document.baseURI).pathname : undefined,
+  )
+  return nodeBase ?? docBase ?? '/'
+}
+
+const BASE_PATH = resolveBasePath()
 const SW_PATH = `${BASE_PATH}sw.js`
 const CHANNEL_NAME = 'skillmap-sync'
 const MESSAGE_TIMEOUT_MS = 5000
@@ -197,6 +214,35 @@ export const importSkillTreeToSW = async (tree: SkillTree): Promise<SkillTree> =
   return normalizeSkillTree(response)
 }
 
+const defaultSkillTreeSummary: SkillTreeSummary = {
+  id: defaultSkillTree.id,
+  name: defaultSkillTree.name,
+  updatedAt: defaultSkillTree.updatedAt,
+  nodeCount: defaultSkillTree.nodes.length,
+  sourceUrl: defaultSkillTree.sourceUrl,
+}
+
+/**
+ * SWレスポンスのスキルツリーサマリを安全な値に正規化する。
+ * @param entry SWからの生データ
+ * @returns 正規化済みサマリ
+ */
+const normalizeSkillTreeSummary = (entry: Partial<SkillTreeSummary>): SkillTreeSummary => {
+  const id = typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id.trim() : defaultSkillTreeSummary.id
+  const name = typeof entry.name === 'string' && entry.name.trim().length > 0 ? entry.name.trim() : defaultSkillTreeSummary.name
+  const updatedAt =
+    typeof entry.updatedAt === 'string' && entry.updatedAt.trim().length > 0
+      ? entry.updatedAt
+      : defaultSkillTreeSummary.updatedAt
+  const nodeCount = Number.isFinite(entry.nodeCount) ? Number(entry.nodeCount) : defaultSkillTreeSummary.nodeCount
+  const sourceUrl =
+    typeof entry.sourceUrl === 'string' && entry.sourceUrl.trim().length > 0
+      ? entry.sourceUrl.trim()
+      : defaultSkillTreeSummary.sourceUrl
+
+  return { id, name, updatedAt, nodeCount, sourceUrl }
+}
+
 /**
  * スキルツリー一覧を取得する。
  * @returns スキルツリーサマリの配列
@@ -204,24 +250,10 @@ export const importSkillTreeToSW = async (tree: SkillTree): Promise<SkillTree> =
 export const listSkillTreesFromSW = async (): Promise<SkillTreeSummary[]> => {
   try {
     const response = await callServiceWorker<SkillTreeSummary[]>('list-skill-trees', defaultSkillTree.id)
-    return response.map((entry) => ({
-      id: typeof entry.id === 'string' && entry.id.trim().length > 0 ? entry.id.trim() : defaultSkillTree.id,
-      name: typeof entry.name === 'string' && entry.name.trim().length > 0 ? entry.name.trim() : 'Skill Tree',
-      updatedAt: typeof entry.updatedAt === 'string' && entry.updatedAt.length > 0 ? entry.updatedAt : new Date().toISOString(),
-      nodeCount: Number.isFinite(entry.nodeCount) ? Number(entry.nodeCount) : 0,
-      sourceUrl:
-        typeof entry.sourceUrl === 'string' && entry.sourceUrl.trim().length > 0 ? entry.sourceUrl.trim() : undefined,
-    }))
+    return response.map((entry) => normalizeSkillTreeSummary(entry))
   } catch (error) {
-    console.info('list-skill-trees が未対応のためデフォルトのみを返します')
-    return [
-      {
-        id: defaultSkillTree.id,
-        name: defaultSkillTree.name,
-        updatedAt: defaultSkillTree.updatedAt,
-        nodeCount: defaultSkillTree.nodes.length,
-      },
-    ]
+    console.info('list-skill-trees が未対応のためデフォルトのみを返します', error)
+    return [defaultSkillTreeSummary]
   }
 }
 
