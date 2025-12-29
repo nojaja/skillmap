@@ -35,8 +35,14 @@ export type { SkillConnection, SkillDraft, SkillNode, SkillStatus, SkillTree } f
 
 const cloneSkillTree = (tree: SkillTree): SkillTree => ({
   ...tree,
-  nodes: tree.nodes.map((node) => ({ ...node, reqs: node.reqs ? [...node.reqs] : [] })),
+  nodes: tree.nodes.map((node) => ({
+    ...node,
+    reqs: node.reqs ? [...node.reqs] : [],
+    reqMode: node.reqMode ?? 'and',
+  })),
   connections: tree.connections.map((connection) => ({ ...connection })),
+  version: tree.version ?? 1,
+  sourceEtag: tree.sourceEtag,
 })
 
 const toSerializableSkillTree = (tree: SkillTree): SkillTree => {
@@ -266,7 +272,16 @@ export const useSkillStore = defineStore('skill', {
       if (this.isUnlocked(skillId)) return false
       if (node.cost > this.availablePoints) return false
       const prereqs = this.getPrerequisites(skillId)
-      if (prereqs.length > 0 && prereqs.some((req) => !this.isUnlocked(req))) return false
+      const reqMode = node.reqMode ?? 'and'
+
+      if (prereqs.length > 0) {
+        const unlockedCount = prereqs.filter((req) => this.isUnlocked(req)).length
+        if (reqMode === 'or') {
+          if (unlockedCount === 0) return false
+        } else {
+          if (unlockedCount !== prereqs.length) return false
+        }
+      }
       return true
     },
     /**
@@ -313,10 +328,8 @@ export const useSkillStore = defineStore('skill', {
      * 実装理由: ノードの追加・削除・移動後も整合性のあるグラフ構造を維持するため。
      */
     refreshConnections() {
-      this.skillTreeData.connections = normalizeConnections(
-        this.skillTreeData.nodes,
-        this.skillTreeData.connections,
-      )
+      // reqsを唯一のソースとして接続を再構築し、古い接続を残さない
+      this.skillTreeData.connections = normalizeConnections(this.skillTreeData.nodes, [])
     },
     /**
      * 処理名: 選択トグル
@@ -615,19 +628,28 @@ export const useSkillStore = defineStore('skill', {
     },
     async applyImportedSkillTree(tree: SkillTree) {
       await ensureServiceWorker()
-      let alreadyExists = false
+      const incomingVersion = tree.version ?? 1
+
+      let existing: SkillTree | null = null
       try {
-        const latestList = await listSkillTreesFromSW()
-        alreadyExists = latestList.some((item) => item.id === tree.id)
+        existing = await getSkillTreeFromSW(tree.id)
       } catch (error) {
-        console.warn('スキルツリー一覧の取得に失敗したため、上書き確認をスキップします', error)
+        console.warn('既存スキルツリーの取得に失敗しました。新規として扱います', error)
       }
 
-      if (alreadyExists) {
-        const confirmed = window.confirm('同じIDのスキルツリーが存在します。上書きしますか？')
-        if (!confirmed) {
-          throw new Error('import-cancelled')
+      if (existing) {
+        const existingVersion = existing.version ?? 1
+
+        if (incomingVersion < existingVersion) {
+          const confirmed = window.confirm('同じIDのスキルツリーが存在します。上書きしますか？')
+          if (!confirmed) {
+            throw new Error('import-cancelled-version-older')
+          }
+        } else if (incomingVersion === existingVersion) {
+          // 同一バージョンは更新不要
+          return
         }
+        // incomingVersion > existingVersion は確認なしで上書き
       }
 
       const imported = await importSkillTreeToSW(
@@ -688,10 +710,13 @@ export const useSkillStore = defineStore('skill', {
       try {
         await ensureServiceWorker()
         this.refreshConnections()
+        const nextVersion = (this.skillTreeData.version ?? 0) + 1
+        this.skillTreeData.version = nextVersion
         const payload: SkillTree = toSerializableSkillTree({
           ...this.skillTreeData,
           id: this.currentTreeId,
           updatedAt: new Date().toISOString(),
+          version: nextVersion,
         })
         const saved = await saveSkillTreeToSW(payload)
         this.skillTreeData = normalizeSkillTree(saved, defaultSkillTree)
@@ -767,7 +792,8 @@ export const useSkillStore = defineStore('skill', {
           throw new Error(`スキルツリーの取得に失敗しました (${response.status})`)
         }
         const parsed = await response.json()
-        const normalized = normalizeSkillTree({ ...parsed, sourceUrl: trimmed }, defaultSkillTree)
+        const etag = response.headers.get('etag') ?? undefined
+        const normalized = normalizeSkillTree({ ...parsed, sourceUrl: trimmed, sourceEtag: etag }, defaultSkillTree)
         await this.applyImportedSkillTree(normalized)
       } catch (error) {
         console.error('スキルツリーのインポートに失敗しました', error)
@@ -793,8 +819,9 @@ export const useSkillStore = defineStore('skill', {
       const targetId = treeId?.trim() || defaultSkillTree.id
       await this.loadSkillTree(targetId)
       await this.loadStatus(targetId)
-      await this.refreshFromSourceUrl()
       this.clearSelection()
+      // UI表示後に最新ソースをバックグラウンド確認
+      void this.refreshFromSourceUrl()
     },
     /**
      * 処理名: ステータス読込
@@ -872,10 +899,17 @@ export const useSkillStore = defineStore('skill', {
       if (!sourceUrl) return
 
       try {
-        const response = await fetch(sourceUrl)
+        const headers: Record<string, string> = {}
+        const etag = this.skillTreeData.sourceEtag?.trim()
+        if (etag) headers['If-None-Match'] = etag
+
+        const response = await fetch(sourceUrl, { headers })
+        if (response.status === 304) return
         if (!response.ok) return
+
         const parsed = await response.json()
-        const normalized = normalizeSkillTree({ ...parsed, sourceUrl }, defaultSkillTree)
+        const nextEtag = response.headers.get('etag') ?? undefined
+        const normalized = normalizeSkillTree({ ...parsed, sourceUrl, sourceEtag: nextEtag }, defaultSkillTree)
         const incomingTime = new Date(normalized.updatedAt).getTime()
         const currentTime = new Date(this.skillTreeData.updatedAt).getTime()
         if (!Number.isFinite(incomingTime) || incomingTime <= currentTime) return

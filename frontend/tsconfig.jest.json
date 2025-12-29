@@ -6,7 +6,9 @@
     "allowImportingTsExtensions": true,
     "module": "ES2022",
     "moduleResolution": "node16",
-    "verbatimModuleSyntax": false
+    "baseUrl": ".",
+    "verbatimModuleSyntax": false,
+    "isolatedModules": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "../test/unit/frontend/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "../test/unit/frontend/**/*.ts", "../test/**/*.d.ts"]
 }

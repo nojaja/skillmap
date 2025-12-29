@@ -33,6 +33,21 @@ const normalizeUpdatedAt = (value, fallback) => {
 
 const isStringArray = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string')
 
+const normalizeReqMode = (value) => (value === 'or' ? 'or' : 'and')
+
+const normalizeVersion = (value, fallback = 1) => {
+  const num = Number(value)
+  if (Number.isInteger(num) && num >= 1) return num
+  if (Number.isInteger(fallback) && fallback >= 1) return fallback
+  return 1
+}
+
+const normalizeSourceEtag = (value) => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 const sanitizeTreeId = (value) => (typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : DEFAULT_TREE_ID)
 
 const normalizeNodes = (rawNodes) => {
@@ -60,6 +75,7 @@ const normalizeNodes = (rawNodes) => {
         cost: Math.max(0, Number.isFinite(Number(node.cost)) ? Number(node.cost) : 0),
         description,
         reqs,
+        reqMode: normalizeReqMode(node.reqMode),
       },
     ]
   })
@@ -101,7 +117,9 @@ const normalizeSkillTreePayload = (payload, fallback) => {
     nodes: [],
     connections: [],
     updatedAt: isoNow(),
+    version: 1,
     sourceUrl: undefined,
+    sourceEtag: undefined,
   }
   const nodes = normalizeNodes((payload?.nodes ?? safeFallback.nodes) ?? [])
   const connections = normalizeConnections(nodes, (payload?.connections ?? safeFallback.connections) ?? [])
@@ -112,6 +130,8 @@ const normalizeSkillTreePayload = (payload, fallback) => {
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt, safeFallback.updatedAt),
+    version: normalizeVersion(payload?.version, safeFallback.version),
+    sourceEtag: normalizeSourceEtag(payload?.sourceEtag) ?? safeFallback.sourceEtag,
     sourceUrl:
       typeof payload?.sourceUrl === 'string' && payload.sourceUrl.trim().length > 0
         ? payload.sourceUrl.trim()
@@ -299,7 +319,7 @@ const handleSaveStatus = async (treeId, payload) => {
 const handleExportSkillTree = async (treeId, payload) => {
   const fallback = normalizeSkillTreePayload(payload?.fallback)
   const stored = await readSkillTreeFile(treeId, null)
-  return stored ? normalizeSkillTreePayload(stored, fallback) : fallback
+  const merged = mergeByUpdatedAt(incoming, stored ? normalizeSkillTreePayload(stored, incoming) : null)
 }
 
 const handleImportSkillTree = async (treeId, payload) => {

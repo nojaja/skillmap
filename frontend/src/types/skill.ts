@@ -6,6 +6,7 @@ export interface SkillNode {
   cost: number
   description: string
   reqs?: string[]
+  reqMode?: 'and' | 'or'
 }
 
 export interface SkillDraft {
@@ -16,6 +17,7 @@ export interface SkillDraft {
   cost: number
   description: string
   reqs: string[]
+  reqMode?: 'and' | 'or'
 }
 
 export interface SkillConnection {
@@ -29,7 +31,9 @@ export interface SkillTree {
   nodes: SkillNode[]
   connections: SkillConnection[]
   updatedAt: string
+  version: number
   sourceUrl?: string
+  sourceEtag?: string
 }
 
 export interface SkillTreeSummary {

@@ -19,6 +19,7 @@ const editSkillForm = reactive<SkillDraft>({
   y: 0,
   description: '',
   reqs: [],
+  reqMode: 'and',
 })
 
 const editMessage = ref('')
@@ -71,6 +72,7 @@ watch(
     editSkillForm.y = skill.y
     editSkillForm.description = skill.description ?? ''
     editSkillForm.reqs = [...(skill.reqs ?? [])]
+    editSkillForm.reqMode = skill.reqMode ?? 'and'
     editMessage.value = ''
   },
   { immediate: true, deep: true },
@@ -130,6 +132,7 @@ watch(
 
 const removeReq = (id: string) => {
   editSkillForm.reqs = editSkillForm.reqs.filter((req) => req !== id)
+  handleUpdate()
 }
 
 </script>
@@ -159,8 +162,8 @@ const removeReq = (id: string) => {
           <button
             class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
             type="button"
-            :disabled="!props.isEditMode || !props.hasSelection"
-            :title="!props.hasSelection ? '前提スキルを選択すると有効になります (Ctrl+クリック)' : 'Ctrl+I でも開けます'"
+            :disabled="!props.isEditMode"
+            title="Ctrl+I でも開けます"
             @click="props.startNewSkillFlow"
           >
             新規スキル追加 (Ctrl+I)
@@ -263,6 +266,28 @@ const removeReq = (id: string) => {
             <div class="flex items-center justify-between">
               <span class="text-sm text-slate-200">依存スキル (Chips入力)</span>
               <span class="text-[11px] text-slate-400">Enter またはカンマで追加</span>
+            </div>
+            <div class="flex items-center gap-3 text-xs text-slate-200">
+              <label class="inline-flex items-center gap-1">
+                <input
+                  v-model="editSkillForm.reqMode"
+                  class="accent-amber-400"
+                  type="radio"
+                  value="and"
+                  :disabled="!skillStore.editMode || !hasActiveSkill"
+                />
+                <span>AND (すべて必要)</span>
+              </label>
+              <label class="inline-flex items-center gap-1">
+                <input
+                  v-model="editSkillForm.reqMode"
+                  class="accent-amber-400"
+                  type="radio"
+                  value="or"
+                  :disabled="!skillStore.editMode || !hasActiveSkill"
+                />
+                <span>OR (どれか1つで可)</span>
+              </label>
             </div>
             <div class="flex flex-wrap gap-2">
               <span

@@ -9,7 +9,7 @@ export default {
   roots: [__dirname, path.resolve(__dirname, '../test')],
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleFileExtensions: ['ts', 'js', 'json', 'mjs', 'cjs'],
   testMatch: ['<rootDir>/../test/unit/frontend/**/*.test.ts'],
   verbose: true,
   collectCoverage: true,
@@ -22,11 +22,14 @@ export default {
       {
         useESM: true,
         tsconfig: path.join(__dirname, 'tsconfig.jest.json'),
+        // テストでは型チェックを省略し、Vite/esbuildと同様にトランスパイルのみ実施する
+        diagnostics: false,
       },
     ],
   },
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
+    '^pinia$': '<rootDir>/../test/mocks/pinia.ts',
   },
   coverageThreshold: {
     global: {

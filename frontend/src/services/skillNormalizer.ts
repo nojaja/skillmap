@@ -49,6 +49,21 @@ const normalizeReqs = (node: SkillNode): string[] => {
   return Array.from(new Set(node.reqs.filter((req): req is string => typeof req === 'string' && req.trim().length > 0)))
 }
 
+const normalizeReqMode = (value: unknown): 'and' | 'or' => (value === 'or' ? 'or' : 'and')
+
+const normalizeVersion = (value: unknown, fallback = 1): number => {
+  const num = Number(value)
+  if (Number.isInteger(num) && num >= 1) return num
+  if (Number.isInteger(fallback) && fallback >= 1) return fallback
+  return 1
+}
+
+const normalizeSourceEtag = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 /**
  * 数値入力を有限値に丸める。
  * @param value 入力値
@@ -86,6 +101,7 @@ const sanitizeNode = (node: unknown, seen: Set<string>): SkillDraft | null => {
 
   const description = typeof typed.description === 'string' ? typed.description.trim() : ''
   const reqs = normalizeReqs(typed)
+  const reqMode = normalizeReqMode(typed.reqMode)
 
   seen.add(id)
 
@@ -97,6 +113,7 @@ const sanitizeNode = (node: unknown, seen: Set<string>): SkillDraft | null => {
     cost: normalizeCost(typed.cost),
     description,
     reqs,
+    reqMode,
   }
 }
 
@@ -193,6 +210,9 @@ const buildFallbackSkillTree = (payload?: Partial<SkillTree>): SkillTree => {
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt),
+    version: normalizeVersion(payload?.version, 1),
+    sourceUrl: payload?.sourceUrl,
+    sourceEtag: normalizeSourceEtag(payload?.sourceEtag),
   }
 }
 
@@ -214,10 +234,12 @@ export const normalizeSkillTree = (payload?: Partial<SkillTree>, fallback: Skill
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt, fallback.updatedAt),
+    version: normalizeVersion(payload?.version, fallback.version),
     sourceUrl:
       typeof payload?.sourceUrl === 'string' && payload.sourceUrl.trim().length > 0
         ? payload.sourceUrl.trim()
         : fallback.sourceUrl,
+    sourceEtag: normalizeSourceEtag(payload?.sourceEtag) ?? fallback.sourceEtag,
   }
 }
 

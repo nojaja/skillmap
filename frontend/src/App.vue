@@ -139,10 +139,6 @@ const importSkillTreeFromQuery = async () => {
 
 const startNewSkillFlow = () => {
   if (!skillStore.editMode) return
-  if (!hasSelection.value) {
-    newSkillHint.value = '前提スキルをCtrl+クリックで選択してください'
-    return
-  }
   newSkillHint.value = ''
   const result = skillStore.createSkillFromSelection()
   if (!result.ok) {
@@ -161,6 +157,14 @@ const deleteSelectedSkills = () => {
   })
 }
 
+const isEditableTarget = (target: EventTarget | null): boolean => {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName?.toLowerCase()
+  if (el.isContentEditable) return true
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'option' || tag === 'button'
+}
+
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.ctrlKey && event.key.toLowerCase() === 'e') {
     event.preventDefault()
@@ -172,7 +176,13 @@ const handleKeydown = (event: KeyboardEvent) => {
     startNewSkillFlow()
   }
 
-  if (!event.ctrlKey && event.key === 'Delete' && skillStore.editMode && hasSelection.value) {
+  if (
+    !event.ctrlKey &&
+    event.key === 'Delete' &&
+    skillStore.editMode &&
+    hasSelection.value &&
+    !isEditableTarget(event.target)
+  ) {
     event.preventDefault()
     deleteSelectedSkills()
   }
