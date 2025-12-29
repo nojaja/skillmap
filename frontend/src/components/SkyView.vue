@@ -19,8 +19,17 @@ const MIN_SCALE = 0.6
 const MAX_SCALE = 2.5
 
 const clampScale = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
-const applyScale = (value: number) => {
-  scale.value = clampScale(value)
+const zoomAt = (pivot: { x: number; y: number }, nextScale: number) => {
+  const previousScale = scale.value
+  const clamped = clampScale(nextScale)
+  if (clamped === previousScale) return
+  const worldX = (pivot.x - offset.value.x) / previousScale
+  const worldY = (pivot.y - offset.value.y) / previousScale
+  offset.value = {
+    x: pivot.x - worldX * clamped,
+    y: pivot.y - worldY * clamped,
+  }
+  scale.value = clamped
 }
 
 const hasUserMoved = ref(false)
@@ -51,8 +60,11 @@ const onMouseMove = (event: MouseEvent) => {
 const onWheel = (event: WheelEvent) => {
   event.preventDefault()
   markUserMoved()
+  const rect = containerRef.value?.getBoundingClientRect()
+  if (!rect) return
+  const pivot = { x: event.clientX - rect.left, y: event.clientY - rect.top }
   const factor = Math.exp(-event.deltaY * 0.0015)
-  applyScale(scale.value * factor)
+  zoomAt(pivot, scale.value * factor)
 }
 
 const distanceBetweenTouches = (touches: TouchList) => {
@@ -88,8 +100,16 @@ const onTouchMove = (event: TouchEvent) => {
     const currentDistance = distanceBetweenTouches(event.touches)
     if (currentDistance === 0) return
     markUserMoved()
+    const rect = containerRef.value?.getBoundingClientRect()
+    if (!rect) return
+    const [first, second] = [event.touches.item(0), event.touches.item(1)]
+    if (!first || !second) return
+    const center = {
+      x: (first.clientX + second.clientX) / 2 - rect.left,
+      y: (first.clientY + second.clientY) / 2 - rect.top,
+    }
     const factor = currentDistance / pinchState.startDistance
-    applyScale(pinchState.startScale * factor)
+    zoomAt(center, pinchState.startScale * factor)
     return
   }
 
@@ -211,6 +231,6 @@ watch(
 
 <style scoped>
 .sky-inner {
-  transform-origin: center;
+  transform-origin: top left;
 }
 </style>
