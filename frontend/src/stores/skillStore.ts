@@ -658,9 +658,6 @@ export const useSkillStore = defineStore('skill', {
           if (!confirmed) {
             throw new Error('import-cancelled-version-older')
           }
-        } else if (incomingVersion === existingVersion) {
-          // 同一バージョンの場合は無視
-          return
         }
         // incomingVersion > existingVersion のときは上書き
       }
@@ -750,7 +747,9 @@ export const useSkillStore = defineStore('skill', {
       try {
         this.refreshConnections()
         const normalized = await exportSkillTreeFromSW(this.currentTreeId)
-        const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' })
+        const { sourceUrl, ...rest } = normalized
+        const exportPayload = { ...rest, originalUrl: sourceUrl }
+        const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
         anchor.href = url
@@ -764,7 +763,9 @@ export const useSkillStore = defineStore('skill', {
     async exportSkillTreeById(treeId: string) {
       try {
         const normalized = await exportSkillTreeFromSW(treeId)
-        const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' })
+        const { sourceUrl, ...rest } = normalized
+        const exportPayload = { ...rest, originalUrl: sourceUrl }
+        const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const anchor = document.createElement('a')
         anchor.href = url

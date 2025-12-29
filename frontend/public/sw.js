@@ -182,9 +182,13 @@ const refreshSkillTreeCacheFromDisk = async () => {
 
 const safeRemoveEntry = async (dirHandle, name) => {
   try {
-    await dirHandle.removeEntry(name)
+    // 事前に存在確認を行い、NotFoundは静かにスキップする
+    const handle = await dirHandle.getFileHandle(name, { create: false })
+    if (handle) {
+      await dirHandle.removeEntry(name)
+    }
   } catch (error) {
-    // 存在しない場合も含めて削除失敗は無視する
+    if (error?.name === 'NotFoundError') return
     console.warn('removeEntry skipped', name, error?.message)
   }
 }
@@ -319,7 +323,8 @@ const handleSaveStatus = async (treeId, payload) => {
 const handleExportSkillTree = async (treeId, payload) => {
   const fallback = normalizeSkillTreePayload(payload?.fallback)
   const stored = await readSkillTreeFile(treeId, null)
-  const merged = mergeByUpdatedAt(incoming, stored ? normalizeSkillTreePayload(stored, incoming) : null)
+  if (!stored) return fallback
+  return normalizeSkillTreePayload(stored, fallback)
 }
 
 const handleImportSkillTree = async (treeId, payload) => {
