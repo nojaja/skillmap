@@ -9,17 +9,18 @@ const nodes = computed(() => skillStore.skillTreeData.nodes)
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const offset = ref({ x: 0, y: 0 })
-const scale = ref(window.matchMedia('(max-width: 768px)').matches ? 1.12 : 1)
+const scale = ref(window.matchMedia('(max-width: 768px)').matches ? 0.92 : 1)
+const MIN_SCALE_FLOOR = 0.25
+const minScale = ref(MIN_SCALE_FLOOR)
 const isDragging = ref(false)
 const dragStart = ref({ x: 0, y: 0 })
 const initialOffset = ref({ x: 0, y: 0 })
 const pinchState = reactive({ active: false, startDistance: 0, startScale: 1 })
 
-const MIN_SCALE = 0.6
 const MAX_SCALE = 2.5
-
-const clampScale = (value: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, value))
+const clampScale = (value: number) => Math.min(MAX_SCALE, Math.max(minScale.value, value))
 const zoomAt = (pivot: { x: number; y: number }, nextScale: number) => {
+  updateViewportMetrics({ recenter: false })
   const previousScale = scale.value
   const clamped = clampScale(nextScale)
   if (clamped === previousScale) return
@@ -135,35 +136,65 @@ const transformValue = computed(
   () => `translate(${offset.value.x}px, ${offset.value.y}px) scale(${scale.value})`,
 )
 
-const computeNodesCenter = () => {
-  if (!nodes.value.length) return { x: 500, y: 400 }
+const computeNodesBounds = () => {
+  if (!nodes.value.length) {
+    return {
+      minX: 0,
+      maxX: 1000,
+      minY: 0,
+      maxY: 800,
+      width: 1000,
+      height: 800,
+      center: { x: 500, y: 400 },
+    }
+  }
   const xs = nodes.value.map((n) => n.x)
   const ys = nodes.value.map((n) => n.y)
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
   const maxY = Math.max(...ys)
+  const width = Math.max(maxX - minX, 1)
+  const height = Math.max(maxY - minY, 1)
   return {
-    x: (minX + maxX) / 2,
-    y: (minY + maxY) / 2,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width,
+    height,
+    center: {
+      x: (minX + maxX) / 2,
+      y: (minY + maxY) / 2,
+    },
   }
 }
 
-const centerToNodes = () => {
+const updateViewportMetrics = (options: { recenter?: boolean } = {}) => {
   const el = containerRef.value
   if (!el) return
   const { width, height } = el.getBoundingClientRect()
-  const center = computeNodesCenter()
-  const currentScale = scale.value || 1
+  const bounds = computeNodesBounds()
+  // フルズームアウト時にスキル群の左右端が画面中央1/3ラインに収まるようスケール下限を計算
+  const horizontalScale = width / (bounds.width * 3)
+  const verticalScale = height / (bounds.height * 3)
+  const candidateMinScale = Math.min(horizontalScale, verticalScale)
+  minScale.value = Math.min(MAX_SCALE, Math.max(MIN_SCALE_FLOOR, candidateMinScale))
+  scale.value = clampScale(scale.value)
+  if (options.recenter === false) return
   offset.value = {
-    x: width / (2 * currentScale) - center.x,
-    y: height / (2 * currentScale) - center.y,
+    x: width / (2 * scale.value) - bounds.center.x,
+    y: height / (2 * scale.value) - bounds.center.y,
   }
 }
 
+const handleResize = () => {
+  updateViewportMetrics()
+}
+
 onMounted(() => {
-  void nextTick(centerToNodes)
-  window.addEventListener('resize', centerToNodes)
+  void nextTick(updateViewportMetrics)
+  window.addEventListener('resize', handleResize)
 })
 
 onMounted(() => {
@@ -176,22 +207,25 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', stopDragging)
   window.removeEventListener('touchend', stopDragging)
   window.removeEventListener('touchcancel', stopDragging)
-  window.removeEventListener('resize', centerToNodes)
+  window.removeEventListener('resize', handleResize)
 })
 
 watch(
   () => skillStore.currentTreeId,
   () => {
     hasUserMoved.value = false
-    void nextTick(centerToNodes)
+    void nextTick(updateViewportMetrics)
   },
 )
 
 watch(
   () => skillStore.skillTreeData.nodes.length,
   () => {
-    if (hasUserMoved.value) return
-    void nextTick(centerToNodes)
+    if (hasUserMoved.value) {
+      void nextTick(() => updateViewportMetrics({ recenter: false }))
+      return
+    }
+    void nextTick(updateViewportMetrics)
   },
 )
 </script>
