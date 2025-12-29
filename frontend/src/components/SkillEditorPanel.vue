@@ -4,6 +4,13 @@ import { useSkillStore, type SkillDraft } from '../stores/skillStore'
 
 const skillStore = useSkillStore()
 
+const props = defineProps<{
+  startNewSkillFlow: () => void
+  newSkillHint: string
+  hasSelection: boolean
+  isEditMode: boolean
+}>()
+
 const editSkillForm = reactive<SkillDraft>({
   id: '',
   name: '',
@@ -15,12 +22,19 @@ const editSkillForm = reactive<SkillDraft>({
 })
 
 const editMessage = ref('')
-const ioMessage = ref('')
-const pendingImport = ref(false)
 const editReqInput = ref('')
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const treeNameInput = ref(skillStore.skillTreeData.name)
+const treeMessage = ref('')
 const displayName = (id: string) => skillStore.skillTreeData.nodes.find((n) => n.id === id)?.name ?? id
 const hasActiveSkill = computed(() => Boolean(skillStore.activeSkill))
+const onReqInputFocus = () => {
+  skillStore.setDependencyInputFocus(true)
+}
+const onReqInputBlur = () => {
+  window.setTimeout(() => {
+    skillStore.setDependencyInputFocus(false)
+  }, 0)
+}
 
 const resetEditSkillForm = () => {
   editSkillForm.id = ''
@@ -33,6 +47,14 @@ const resetEditSkillForm = () => {
   editMessage.value = ''
   editReqInput.value = ''
 }
+
+watch(
+  () => skillStore.skillTreeData.name,
+  (name) => {
+    treeNameInput.value = name
+  },
+  { immediate: true },
+)
 
 watch(
   () => skillStore.activeSkill,
@@ -66,6 +88,12 @@ const handleUpdate = () => {
   editMessage.value = result.ok ? 'スキルを更新しました' : result.message ?? '更新に失敗しました'
 }
 
+const handleUpdateTreeName = () => {
+  treeMessage.value = ''
+  const result = skillStore.updateSkillTreeName(treeNameInput.value)
+  treeMessage.value = result.ok ? 'スキルツリー名を更新しました' : result.message ?? '更新に失敗しました'
+}
+
 const handleDelete = () => {
   if (!skillStore.editMode || !hasActiveSkill.value) return
 
@@ -90,45 +118,20 @@ const addReqFromInput = () => {
   editReqInput.value = ''
 }
 
+watch(
+  () => skillStore.dependencyInputSelectionToken,
+  () => {
+    if (!skillStore.dependencyInputSelectedId) return
+    if (!skillStore.editMode || !hasActiveSkill.value) return
+    editReqInput.value = skillStore.dependencyInputSelectedId
+    addReqFromInput()
+  },
+)
+
 const removeReq = (id: string) => {
   editSkillForm.reqs = editSkillForm.reqs.filter((req) => req !== id)
 }
 
-const handleExport = async () => {
-  ioMessage.value = ''
-  try {
-    await skillStore.exportSkillTree()
-    ioMessage.value = 'スキルツリーをエクスポートしました'
-  } catch (error) {
-    console.error('エクスポート処理中に失敗しました', error)
-    ioMessage.value = 'エクスポートに失敗しました'
-  }
-}
-
-const triggerImport = () => {
-  ioMessage.value = ''
-  fileInputRef.value?.click()
-}
-
-const handleFileChange = async (event: Event) => {
-  const input = event.target as HTMLInputElement | null
-  const file = input?.files?.[0]
-  if (!file) return
-
-  pendingImport.value = true
-  ioMessage.value = ''
-
-  try {
-    await skillStore.importSkillTreeFromFile(file)
-    ioMessage.value = 'スキルツリーをインポートしました'
-  } catch (error) {
-    console.error('インポート処理中に失敗しました', error)
-    ioMessage.value = 'インポートに失敗しました'
-  } finally {
-    if (input) input.value = ''
-    pendingImport.value = false
-  }
-}
 </script>
 
 <template>
@@ -147,6 +150,49 @@ const handleFileChange = async (event: Event) => {
     </header>
 
     <div class="space-y-6">
+      <div class="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 class="text-base font-semibold text-slate-100">スキルツリー設定</h3>
+            <p class="text-xs text-slate-400">名称編集と新規スキルの追加</p>
+          </div>
+          <button
+            class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            :disabled="!props.isEditMode || !props.hasSelection"
+            :title="!props.hasSelection ? '前提スキルを選択すると有効になります (Ctrl+クリック)' : 'Ctrl+I でも開けます'"
+            @click="props.startNewSkillFlow"
+          >
+            新規スキル追加 (Ctrl+I)
+          </button>
+        </div>
+        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <label class="text-sm text-slate-200">
+            スキルツリー名
+            <input
+              v-model="treeNameInput"
+              class="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm focus:border-amber-300 focus:outline-none disabled:opacity-60"
+              :disabled="!skillStore.editMode"
+              type="text"
+            />
+          </label>
+          <div class="flex justify-end gap-2">
+            <button
+              class="rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-amber-400/25 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              :disabled="!skillStore.editMode"
+              @click="handleUpdateTreeName"
+            >
+              名称を更新
+            </button>
+          </div>
+        </div>
+        <div class="mt-2 space-y-1 text-xs">
+          <p v-if="treeMessage" class="text-cyan-300">{{ treeMessage }}</p>
+          <p v-if="props.newSkillHint" class="text-amber-300">{{ props.newSkillHint }}</p>
+        </div>
+      </div>
+
       <div class="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
         <div class="flex items-center justify-between">
           <h3 class="text-base font-semibold text-slate-100">選択中のスキルを編集</h3>
@@ -241,6 +287,8 @@ const handleFileChange = async (event: Event) => {
               :disabled="!skillStore.editMode || !hasActiveSkill"
               placeholder="依存スキルIDを入力し Enter / , で追加"
               type="text"
+              @focus="onReqInputFocus"
+              @blur="onReqInputBlur"
               @keydown.enter.prevent="addReqFromInput"
               @keydown.space.stop
               @keydown.,.prevent="addReqFromInput"
@@ -278,41 +326,6 @@ const handleFileChange = async (event: Event) => {
         </form>
       </div>
 
-      <div class="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-        <div class="flex items-center justify-between">
-          <h3 class="text-base font-semibold text-slate-100">スキルネットの入出力</h3>
-          <span class="text-xs text-slate-400">JSON</span>
-        </div>
-        <p class="mb-3 text-xs text-slate-400">
-          編集モードで現在のスキルネットをエクスポート/インポートできます。エクスポートしたファイルは初期データとしても利用できます。
-        </p>
-        <div class="flex flex-wrap items-center gap-3">
-          <button
-            class="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            :disabled="!skillStore.editMode"
-            @click="handleExport"
-          >
-            エクスポート (JSON)
-          </button>
-          <button
-            class="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            :disabled="!skillStore.editMode || pendingImport"
-            @click="triggerImport"
-          >
-            インポート (JSON)
-          </button>
-          <input
-            ref="fileInputRef"
-            class="hidden"
-            type="file"
-            accept="application/json"
-            @change="handleFileChange"
-          />
-        </div>
-        <p v-if="ioMessage" class="mt-2 text-xs text-cyan-300">{{ ioMessage }}</p>
-      </div>
     </div>
   </section>
 </template>

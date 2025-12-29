@@ -9,7 +9,6 @@ const nodes = computed(() => skillStore.skillTreeData.nodes)
 const connections = computed(() => skillStore.skillTreeData.connections)
 const isEditMode = computed(() => skillStore.editMode)
 const selectedNodeIds = computed(() => skillStore.selectedSkillIds)
-const transitionClass = computed(() => (isEditMode.value ? '' : 'transition-all duration-200'))
 const focusedSkillId = ref<string | null>(null)
 const focusedSkill = computed(() => nodes.value.find((node) => node.id === focusedSkillId.value) ?? null)
 const clearFocus = () => {
@@ -26,24 +25,22 @@ const dragState = reactive({
   nodeStartY: 0,
 })
 
+const tapState = reactive({ id: null as string | null, startX: 0, startY: 0, startTime: 0 })
+
 const pressingNodeId = ref<string | null>(null)
 
 const isConnectionUnlocked = (from: string, to: string) =>
   skillStore.isUnlocked(from) && skillStore.isUnlocked(to)
 
-const createDiamondPath = (radius = 18) => {
-  const r = radius
-  return `M0,${-r} L${r},0 L0,${r} L${-r},0 Z`
-}
-
-const STAR_PATH = createDiamondPath()
 const displayName = (id: string) => nodes.value.find((n) => n.id === id)?.name ?? id
 
 const isRootNode = (node: SkillNode) => !node.reqs || node.reqs.length === 0
 
-const getVariant = (node: SkillNode) => {
+const getVariant = (node: SkillNode): 'root' | 'unlocked' | 'available' | 'locked' => {
+  if (isRootNode(node)) {
+    return skillStore.isUnlocked(node.id) ? 'root' : 'available'
+  }
   if (skillStore.isUnlocked(node.id)) return 'unlocked'
-  if (isRootNode(node)) return 'root'
   if (skillStore.canUnlock(node.id)) return 'available'
   return 'locked'
 }
@@ -58,29 +55,58 @@ const getAnimationDelay = (id: string) => {
   return `${-Math.abs(hash % 4000) / 1000}s`
 }
 
-const getStrokeColor = (node: SkillNode, selected: boolean) => {
-  if (isEditMode.value) return selected ? '#fbbf24' : '#94a3b8'
-  const variant = getVariant(node)
-  if (variant === 'unlocked') return '#e0f2fe'
-  if (variant === 'available') return '#67e8f9'
-  if (variant === 'root') return '#f8fafc'
-  return '#334155'
-}
-
-const beginDrag = (node: SkillNode, event: MouseEvent) => {
+const startDrag = (node: SkillNode, startX: number, startY: number) => {
   if (!isEditMode.value) return
-  event.stopPropagation()
-  event.stopImmediatePropagation?.()
   dragState.id = node.id
-  dragState.startX = event.clientX
-  dragState.startY = event.clientY
+  dragState.startX = startX
+  dragState.startY = startY
   dragState.nodeStartX = node.x
   dragState.nodeStartY = node.y
+}
+
+const handleMouseDown = (node: SkillNode, event: MouseEvent) => {
+  event.stopPropagation()
+  event.stopImmediatePropagation?.()
+  handleLongPressStart(node)
+  beginPress(node)
+  startDrag(node, event.clientX, event.clientY)
+}
+
+const handleTouchStart = (node: SkillNode, event: TouchEvent) => {
+  const touch = event.touches[0]
+  if (!touch) return
+  event.stopPropagation()
+  handleLongPressStart(node)
+  beginPress(node)
+  startDrag(node, touch.clientX, touch.clientY)
+  if (!isEditMode.value) {
+    tapState.id = node.id
+    tapState.startX = touch.clientX
+    tapState.startY = touch.clientY
+    tapState.startTime = Date.now()
+  }
+}
+
+const handleTouchEnd = (node: SkillNode, event: TouchEvent) => {
+  const touch = event.changedTouches[0]
+  if (touch && !isEditMode.value && tapState.id === node.id) {
+    const dx = touch.clientX - tapState.startX
+    const dy = touch.clientY - tapState.startY
+    const dt = Date.now() - tapState.startTime
+    if (Math.abs(dx) < 15 && Math.abs(dy) < 15 && dt < 500) {
+      focusedSkillId.value = node.id
+    }
+  }
+  tapState.id = null
 }
 
 const handleNodeClick = (node: SkillNode, event: MouseEvent) => {
   event.stopPropagation()
   if (isEditMode.value) {
+    if (skillStore.dependencyInputFocused) {
+      skillStore.emitDependencyInputSelection(node.id)
+      return
+    }
     const multiSelect = event.ctrlKey || event.metaKey
     skillStore.toggleSelection(node.id, multiSelect)
     return
@@ -135,11 +161,24 @@ const endPress = () => {
   pressingNodeId.value = null
 }
 
-const handleMouseMove = (event: MouseEvent) => {
+const updateDragPosition = (clientX: number, clientY: number) => {
   if (!isEditMode.value || !dragState.id) return
-  const dx = event.clientX - dragState.startX
-  const dy = event.clientY - dragState.startY
+  const dx = clientX - dragState.startX
+  const dy = clientY - dragState.startY
   skillStore.moveSkill(dragState.id, dragState.nodeStartX + dx, dragState.nodeStartY + dy)
+}
+
+const handleMouseMove = (event: MouseEvent) => {
+  updateDragPosition(event.clientX, event.clientY)
+}
+
+const handleTouchMove = (event: TouchEvent) => {
+  const touch = event.touches[0]
+  if (!touch) return
+  if (dragState.id) {
+    event.preventDefault()
+  }
+  updateDragPosition(touch.clientX, touch.clientY)
 }
 
 const endDrag = () => {
@@ -155,11 +194,17 @@ watch(isEditMode, (editing) => {
 onMounted(() => {
   window.addEventListener('mousemove', handleMouseMove)
   window.addEventListener('mouseup', endDrag)
+  window.addEventListener('touchmove', handleTouchMove, { passive: false })
+  window.addEventListener('touchend', endDrag)
+  window.addEventListener('touchcancel', endDrag)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleMouseMove)
   window.removeEventListener('mouseup', endDrag)
+  window.removeEventListener('touchmove', handleTouchMove)
+  window.removeEventListener('touchend', endDrag)
+  window.removeEventListener('touchcancel', endDrag)
 })
 </script>
 
@@ -207,9 +252,12 @@ onBeforeUnmount(() => {
       :key="node.id"
       class="absolute -translate-x-1/2 -translate-y-1/2 transform cursor-pointer"
       :style="{ left: `${node.x}px`, top: `${node.y}px` }"
-      @mousedown.prevent="(event) => { beginDrag(node, event); handleLongPressStart(node); beginPress(node) }"
+      @mousedown.prevent="(event) => handleMouseDown(node, event)"
+      @touchstart.prevent="(event) => handleTouchStart(node, event)"
       @mouseup="() => { handleLongPressEnd(); endPress() }"
       @mouseleave="() => { handleLongPressEnd(); endPress() }"
+      @touchend.stop="(event) => { handleLongPressEnd(); endPress(); endDrag(); handleTouchEnd(node, event) }"
+      @touchcancel.stop="() => { handleLongPressEnd(); endPress(); endDrag(); tapState.id = null }"
       @click="(event) => handleNodeClick(node, event)"
       @dblclick.prevent="() => handleActivation(node)"
     >
@@ -221,6 +269,7 @@ onBeforeUnmount(() => {
       ></div>
 
       <!-- 星本体 -->
+      <div class="hit-area"></div>
       <div
         class="star-core"
         :class="[
@@ -234,7 +283,10 @@ onBeforeUnmount(() => {
       ></div>
 
       <!-- テキスト -->
-      <div class="pointer-events-none absolute left-1/2 top-[-32px] -translate-x-1/2 whitespace-nowrap text-sm font-medium text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" style="text-shadow: 0 0 8px rgba(77,238,234,0.6);">
+      <div
+        class="pointer-events-none absolute left-1/2 top-[-60px] -translate-x-1/2 whitespace-nowrap text-lg font-semibold text-slate-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] sm:top-[-32px] sm:text-base sm:font-medium"
+        style="text-shadow: 0 0 8px rgba(77,238,234,0.6);"
+      >
         {{ node.name }}
       </div>
       <div
@@ -284,6 +336,17 @@ onBeforeUnmount(() => {
   position: relative;
   transition: box-shadow 0.55s ease, transform 0.55s ease;
   z-index: 10;
+}
+
+.hit-area {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 32px;
+  height: 32px;
+  transform: translate(-50%, -50%);
+  background: transparent;
+  z-index: 5;
 }
 
 /* レンズフレア (擬似要素) */
