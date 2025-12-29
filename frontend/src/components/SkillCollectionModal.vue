@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import QRCode from 'qrcode'
 import { useSkillStore } from '../stores/skillStore'
 import type { SkillTreeSummary } from '../types/skill'
 import { defaultSkillTree } from '../services/skillNormalizer'
@@ -12,6 +13,9 @@ const urlInput = ref('')
 const ioMessage = ref('')
 const working = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const shareTargetTreeId = ref<string | null>(null)
+const shareUrl = ref('')
+const shareQrDataUrl = ref('')
 
 const collections = computed(() => skillStore.availableSkillTrees)
 const isLoading = computed(() => skillStore.collectionLoading || working.value)
@@ -28,13 +32,23 @@ const ensureCollection = async () => {
   await skillStore.fetchSkillTreeCollection()
 }
 
+const resetShareState = () => {
+  shareTargetTreeId.value = null
+  shareUrl.value = ''
+  shareQrDataUrl.value = ''
+}
+
 watch(
   () => props.visible,
   (visible) => {
     if (visible) {
       ioMessage.value = ''
       urlInput.value = ''
+      resetShareState()
       void ensureCollection()
+    }
+    if (!visible) {
+      resetShareState()
     }
   },
 )
@@ -169,21 +183,49 @@ const copyToClipboard = async (value: string) => {
   document.body.removeChild(textarea)
 }
 
-const handleShare = async (tree: SkillTreeSummary) => {
+const openShareOptions = (tree: SkillTreeSummary) => {
   ioMessage.value = ''
+  shareQrDataUrl.value = ''
   if (!tree.sourceUrl) {
     ioMessage.value = 'このスキルツリーに共有URLは設定されていません'
     return
   }
 
+  if (shareTargetTreeId.value === tree.id) {
+    resetShareState()
+    return
+  }
+
+  shareUrl.value = buildShareUrl(tree.sourceUrl)
+  shareTargetTreeId.value = tree.id
+}
+
+const handleShareToClipboard = async () => {
+  if (!shareUrl.value) return
   working.value = true
   try {
-    const shareUrl = buildShareUrl(tree.sourceUrl)
-    await copyToClipboard(shareUrl)
+    await copyToClipboard(shareUrl.value)
     ioMessage.value = '共有リンクをクリップボードにコピーしました'
   } catch (error) {
     console.error('共有リンクのコピーに失敗しました', error)
     ioMessage.value = '共有リンクのコピーに失敗しました'
+  } finally {
+    working.value = false
+  }
+}
+
+const handleShareToQrCode = async () => {
+  if (!shareUrl.value) return
+  working.value = true
+  try {
+    shareQrDataUrl.value = await QRCode.toDataURL(shareUrl.value, {
+      margin: 1,
+      scale: 6,
+    })
+    ioMessage.value = '共有用のQRコードを生成しました'
+  } catch (error) {
+    console.error('QRコードの生成に失敗しました', error)
+    ioMessage.value = 'QRコードの生成に失敗しました'
   } finally {
     working.value = false
   }
@@ -308,15 +350,15 @@ const handleShare = async (tree: SkillTreeSummary) => {
                     >
                       このツリーを開く
                     </button>
-                      <button
-                        class="inline-flex items-center justify-center rounded-md bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-50"
-                        type="button"
-                        :disabled="isLoading || !tree.sourceUrl"
-                        title="sourceUrlが設定されているツリーのみ共有できます"
-                        @click="handleShare(tree)"
-                      >
-                        共有
-                      </button>
+                    <button
+                      class="inline-flex items-center justify-center rounded-md bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-50"
+                      type="button"
+                      :disabled="isLoading || !tree.sourceUrl"
+                      title="sourceUrlが設定されているツリーのみ共有できます"
+                      @click="openShareOptions(tree)"
+                    >
+                      共有
+                    </button>
                     <button
                       class="inline-flex items-center justify-center rounded-md bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-50"
                       type="button"
@@ -333,6 +375,48 @@ const handleShare = async (tree: SkillTreeSummary) => {
                     >
                       削除
                     </button>
+                  </div>
+                  <div
+                    v-if="shareTargetTreeId === tree.id"
+                    class="mt-3 space-y-3 rounded-lg border border-slate-800 bg-slate-950/70 p-3"
+                  >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-xs font-semibold text-slate-200">共有方法を選択</p>
+                      <button
+                        class="text-[11px] font-semibold text-slate-400 underline underline-offset-2 hover:text-slate-200"
+                        type="button"
+                        @click="resetShareState"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                    <p class="break-all text-[11px] text-slate-400">共有URL: {{ shareUrl }}</p>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        class="inline-flex items-center justify-center rounded-md bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-50"
+                        type="button"
+                        :disabled="isLoading"
+                        @click="handleShareToClipboard"
+                      >
+                        クリップボード
+                      </button>
+                      <button
+                        class="inline-flex items-center justify-center rounded-md bg-indigo-500 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/30 transition hover:bg-indigo-400 disabled:opacity-50"
+                        type="button"
+                        :disabled="isLoading"
+                        @click="handleShareToQrCode"
+                      >
+                        QRコード
+                      </button>
+                    </div>
+                    <div v-if="shareQrDataUrl" class="flex flex-wrap items-center gap-3">
+                      <img
+                        :src="shareQrDataUrl"
+                        alt="共有URLのQRコード"
+                        class="h-36 w-36 rounded-lg border border-slate-800 bg-white p-2"
+                      />
+                      <p class="text-xs text-slate-400">スマートフォンのカメラでスキャンすると共有URLにアクセスできます。</p>
+                    </div>
                   </div>
                 </article>
               </div>
