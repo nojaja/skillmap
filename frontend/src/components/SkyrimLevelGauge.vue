@@ -23,38 +23,41 @@ const skillTreeName = computed(() => skillStore.skillTreeData.name || 'Skill Con
 <template>
   <div class="skyrim-level-bar-container absolute left-8 top-6 z-50 pointer-events-none select-none">
     <span class="skill-name">{{ skillTreeName }}</span>
-    
-    <div class="bar-assembly">
-      <!-- 左装飾 -->
-      <svg class="decoration" width="24" height="24" viewBox="0 0 24 24">
-        <path d="M12 2 L2 12 L12 22 L22 12 Z" fill="#1a1a1a" stroke="#9ca3af" stroke-width="1.5"/>
-        <path d="M12 7 L7 12 L12 17 L17 12 Z" fill="#9ca3af"/>
-      </svg>
 
-      <!-- バー本体 -->
-      <div class="bar-track">
-        <div class="bar-fill-container" :style="{ width: `${percentage}%` }">
-          <div class="bar-fill"></div>
-          <div class="bar-spark"></div>
+    <div class="bar-stack">
+      <div class="bar-assembly">
+        <!-- 左装飾 -->
+        <svg class="decoration" width="24" height="24" viewBox="0 0 24 24">
+          <path d="M12 2 L2 12 L12 22 L22 12 Z" fill="#1a1a1a" stroke="#9ca3af" stroke-width="1.5"/>
+          <path d="M12 7 L7 12 L12 17 L17 12 Z" fill="#9ca3af"/>
+        </svg>
+
+        <!-- バー本体 -->
+        <div class="bar-track">
+          <div class="bar-fill-container" :style="{ width: `${percentage}%` }">
+            <div class="bar-fill"></div>
+            <div class="bar-spark"></div>
+          </div>
         </div>
+
+        <!-- 右装飾 -->
+        <svg class="decoration" width="24" height="24" viewBox="0 0 24 24">
+          <path d="M12 2 L2 12 L12 22 L22 12 Z" fill="#1a1a1a" stroke="#9ca3af" stroke-width="1.5"/>
+          <path d="M12 7 L7 12 L12 17 L17 12 Z" fill="#9ca3af"/>
+        </svg>
       </div>
 
-      <!-- 右装飾 -->
-      <svg class="decoration" width="24" height="24" viewBox="0 0 24 24">
-        <path d="M12 2 L2 12 L12 22 L22 12 Z" fill="#1a1a1a" stroke="#9ca3af" stroke-width="1.5"/>
-        <path d="M12 7 L7 12 L12 17 L17 12 Z" fill="#9ca3af"/>
-      </svg>
+      <span class="level-text">レベル: {{ currentLevel }}/{{ maxLevel }}</span>
     </div>
-
-    <span class="level-text">レベル: {{ currentLevel }}/{{ maxLevel }}</span>
   </div>
 </template>
 
 <style scoped>
 .skyrim-level-bar-container {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   color: #ffffff;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
 }
@@ -71,6 +74,16 @@ const skillTreeName = computed(() => skillStore.skillTreeData.name || 'Skill Con
   font-weight: 600;
   color: #f3f4f6;
   letter-spacing: 0.05em;
+  width: 100%;
+  text-align: center;
+  margin-top: 6px;
+}
+
+.bar-stack {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .bar-assembly {
