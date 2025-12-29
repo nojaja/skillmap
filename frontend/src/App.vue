@@ -101,6 +101,7 @@ const createNewSkillTree = async () => {
     name: '新規スキルツリー',
     nodes: [],
     connections: [],
+    version: 1,
     updatedAt: new Date().toISOString(),
   }
   try {

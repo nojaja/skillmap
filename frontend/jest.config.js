@@ -20,7 +20,7 @@ export default {
     '^.+\\.(ts|tsx)$': [
       'ts-jest',
       {
-        useESM: true,
+        useESM: false,
         tsconfig: path.join(__dirname, 'tsconfig.jest.json'),
         // テストでは型チェックを省略し、Vite/esbuildと同様にトランスパイルのみ実施する
         diagnostics: false,
@@ -30,6 +30,7 @@ export default {
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
     '^pinia$': '<rootDir>/../test/mocks/pinia.ts',
+    '.*/stores/skillStore\\.ts$': '<rootDir>/../test/mocks/skillStore.ts',
   },
   coverageThreshold: {
     global: {

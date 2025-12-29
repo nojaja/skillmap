@@ -49,8 +49,19 @@ const normalizeReqs = (node: SkillNode): string[] => {
   return Array.from(new Set(node.reqs.filter((req): req is string => typeof req === 'string' && req.trim().length > 0)))
 }
 
+/**
+ * reqModeを安全に正規化する。
+ * @param value 入力値
+ * @returns 'and' または 'or'
+ */
 const normalizeReqMode = (value: unknown): 'and' | 'or' => (value === 'or' ? 'or' : 'and')
 
+/**
+ * バージョン番号を1以上の整数に丸める。
+ * @param value 入力値
+ * @param fallback 代替値
+ * @returns 正規化済みのバージョン番号
+ */
 const normalizeVersion = (value: unknown, fallback = 1): number => {
   const num = Number(value)
   if (Number.isInteger(num) && num >= 1) return num
@@ -58,6 +69,11 @@ const normalizeVersion = (value: unknown, fallback = 1): number => {
   return 1
 }
 
+/**
+ * ETagを正規化する。
+ * @param value 入力値
+ * @returns 正規化済みのETagまたはundefined
+ */
 const normalizeSourceEtag = (value: unknown): string | undefined => {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()

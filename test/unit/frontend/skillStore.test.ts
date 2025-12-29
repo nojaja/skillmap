@@ -3,9 +3,6 @@ import {
   normalizeNodes,
   normalizeSkillTree,
   useSkillStore,
-  type SkillConnection,
-  type SkillNode,
-  type SkillTree,
 } from '../../../frontend/src/stores/skillStore.ts'
 import { createPinia, setActivePinia } from 'pinia'
 

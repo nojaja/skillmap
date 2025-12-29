@@ -1,5 +1,4 @@
-declare module 'pinia' {
-  export function createPinia(): any
-  export function setActivePinia(pinia: any): void
-  export function defineStore(id: string, options: any): any
+declare module 'pinia-mock' {
+  export * from '../../frontend/node_modules/pinia'
+  export { default } from '../../frontend/node_modules/pinia'
 }
