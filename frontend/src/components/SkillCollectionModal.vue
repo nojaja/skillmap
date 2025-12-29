@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useSkillStore } from '../stores/skillStore'
+import type { SkillTreeSummary } from '../types/skill'
 import { defaultSkillTree } from '../services/skillNormalizer'
 
 const props = defineProps<{ visible: boolean }>()
@@ -134,6 +135,59 @@ const handleExport = async (treeId: string) => {
     working.value = false
   }
 }
+
+const buildShareUrl = (sourceUrl: string) => {
+  const url = new URL(window.location.href)
+  url.searchParams.set('skillTreeUrl', sourceUrl)
+  return url.toString()
+}
+
+const copyToClipboard = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'absolute'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+
+  const selection = document.getSelection()
+  const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : null
+
+  textarea.select()
+  document.execCommand('copy')
+
+  if (selectedRange && selection) {
+    selection.removeAllRanges()
+    selection.addRange(selectedRange)
+  }
+
+  document.body.removeChild(textarea)
+}
+
+const handleShare = async (tree: SkillTreeSummary) => {
+  ioMessage.value = ''
+  if (!tree.sourceUrl) {
+    ioMessage.value = 'このスキルツリーに共有URLは設定されていません'
+    return
+  }
+
+  working.value = true
+  try {
+    const shareUrl = buildShareUrl(tree.sourceUrl)
+    await copyToClipboard(shareUrl)
+    ioMessage.value = '共有リンクをクリップボードにコピーしました'
+  } catch (error) {
+    console.error('共有リンクのコピーに失敗しました', error)
+    ioMessage.value = '共有リンクのコピーに失敗しました'
+  } finally {
+    working.value = false
+  }
+}
 </script>
 
 <template>
@@ -254,6 +308,15 @@ const handleExport = async (treeId: string) => {
                     >
                       このツリーを開く
                     </button>
+                      <button
+                        class="inline-flex items-center justify-center rounded-md bg-cyan-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-50"
+                        type="button"
+                        :disabled="isLoading || !tree.sourceUrl"
+                        title="sourceUrlが設定されているツリーのみ共有できます"
+                        @click="handleShare(tree)"
+                      >
+                        共有
+                      </button>
                     <button
                       class="inline-flex items-center justify-center rounded-md bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-md shadow-emerald-500/30 transition hover:bg-emerald-400 disabled:opacity-50"
                       type="button"

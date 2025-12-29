@@ -50,6 +50,37 @@ const normalizeReqs = (node: SkillNode): string[] => {
 }
 
 /**
+ * reqModeを安全に正規化する。
+ * @param value 入力値
+ * @returns 'and' または 'or'
+ */
+const normalizeReqMode = (value: unknown): 'and' | 'or' => (value === 'or' ? 'or' : 'and')
+
+/**
+ * バージョン番号を1以上の整数に丸める。
+ * @param value 入力値
+ * @param fallback 代替値
+ * @returns 正規化済みのバージョン番号
+ */
+const normalizeVersion = (value: unknown, fallback = 1): number => {
+  const num = Number(value)
+  if (Number.isInteger(num) && num >= 1) return num
+  if (Number.isInteger(fallback) && fallback >= 1) return fallback
+  return 1
+}
+
+/**
+ * ETagを正規化する。
+ * @param value 入力値
+ * @returns 正規化済みのETagまたはundefined
+ */
+const normalizeSourceEtag = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+/**
  * 数値入力を有限値に丸める。
  * @param value 入力値
  * @returns 有効な数値または0
@@ -86,6 +117,7 @@ const sanitizeNode = (node: unknown, seen: Set<string>): SkillDraft | null => {
 
   const description = typeof typed.description === 'string' ? typed.description.trim() : ''
   const reqs = normalizeReqs(typed)
+  const reqMode = normalizeReqMode(typed.reqMode)
 
   seen.add(id)
 
@@ -97,6 +129,7 @@ const sanitizeNode = (node: unknown, seen: Set<string>): SkillDraft | null => {
     cost: normalizeCost(typed.cost),
     description,
     reqs,
+    reqMode,
   }
 }
 
@@ -193,6 +226,9 @@ const buildFallbackSkillTree = (payload?: Partial<SkillTree>): SkillTree => {
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt),
+    version: normalizeVersion(payload?.version, 1),
+    sourceUrl: payload?.sourceUrl,
+    sourceEtag: normalizeSourceEtag(payload?.sourceEtag),
   }
 }
 
@@ -214,10 +250,12 @@ export const normalizeSkillTree = (payload?: Partial<SkillTree>, fallback: Skill
     nodes,
     connections,
     updatedAt: normalizeUpdatedAt(payload?.updatedAt, fallback.updatedAt),
+    version: normalizeVersion(payload?.version, fallback.version),
     sourceUrl:
       typeof payload?.sourceUrl === 'string' && payload.sourceUrl.trim().length > 0
         ? payload.sourceUrl.trim()
         : fallback.sourceUrl,
+    sourceEtag: normalizeSourceEtag(payload?.sourceEtag) ?? fallback.sourceEtag,
   }
 }
 

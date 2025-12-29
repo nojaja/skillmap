@@ -1,6 +1,11 @@
 import { normalizeSkillTree, normalizeStatus, defaultSkillTree } from './skillNormalizer'
 import { type SkillStatus, type SkillTree, type SkillTreeSummary } from '../types/skill'
 
+/**
+ * ベースパス文字列を正規化する。
+ * @param value ベースパス候補
+ * @returns スラッシュ終端の文字列またはundefined
+ */
 const normalizeBase = (value?: string | null): string | undefined => {
   if (typeof value !== 'string') return undefined
   const trimmed = value.trim()
@@ -8,6 +13,10 @@ const normalizeBase = (value?: string | null): string | undefined => {
   return trimmed.endsWith('/') ? trimmed : `${trimmed}/`
 }
 
+/**
+ * 実行環境から有効なベースパスを解決する。
+ * @returns ベースパス
+ */
 const resolveBasePath = (): string => {
   const nodeBase = normalizeBase(
     (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.BASE_URL ?? undefined,

@@ -2,10 +2,9 @@ import {
   normalizeConnections,
   normalizeNodes,
   normalizeSkillTree,
-  type SkillConnection,
-  type SkillNode,
-  type SkillTree,
+  useSkillStore,
 } from '../../../frontend/src/stores/skillStore.ts'
+import { createPinia, setActivePinia } from 'pinia'
 
 describe('skillStore normalization helpers', () => {
   it('normalizeNodes: 不正データを除去し、ID重複を排除する', () => {
@@ -51,13 +50,26 @@ describe('skillStore normalization helpers', () => {
       ],
       connections: [],
       updatedAt: '2023-01-01T00:00:00.000Z',
+      version: 2,
     }
 
     const normalized = normalizeSkillTree({ name: '' }, fallback)
 
     expect(normalized.id).toBe('fallback')
     expect(normalized.name).toBe('Fallback Tree')
-    expect(normalized.nodes).toEqual(fallback.nodes)
+    expect(normalized.nodes).toEqual([
+      {
+        id: 'base',
+        name: 'base',
+        description: '',
+        x: 0,
+        y: 0,
+        cost: 0,
+        reqs: [],
+        reqMode: 'and',
+      },
+    ])
+    expect(normalized.version).toBe(2)
   })
 
   it('normalizeSkillTree: 正常系パスでノード・接続を正規化する', () => {
@@ -70,6 +82,7 @@ describe('skillStore normalization helpers', () => {
       ],
       connections: [{ from: 'n1', to: 'n2' }],
       updatedAt: '2023-01-02T00:00:00.000Z',
+      version: 5,
     })
 
     expect(normalized.id).toBe('custom')
@@ -77,5 +90,58 @@ describe('skillStore normalization helpers', () => {
       { from: 'n1', to: 'n2' },
       { from: 'n2', to: 'n1' },
     ])
+    expect(normalized.version).toBe(5)
+  })
+
+  describe('canUnlock における reqMode 判定', () => {
+    beforeEach(() => {
+      setActivePinia(createPinia())
+    })
+
+    it('reqMode=and は全依存アンロックが必要', () => {
+      const store = (useSkillStore as unknown as () => any)()
+      store.availablePoints = 10
+      store.skillTreeData = {
+        id: 't',
+        name: 't',
+        nodes: [
+          { id: 'a', name: 'A', description: '', x: 0, y: 0, cost: 0, reqs: [] },
+          { id: 'b', name: 'B', description: '', x: 10, y: 10, cost: 1, reqs: ['a'], reqMode: 'and' },
+        ],
+        connections: [],
+        updatedAt: '2023-01-01T00:00:00.000Z',
+      }
+
+      store.unlockedSkillIds = []
+      expect(store.canUnlock('b')).toBe(false)
+
+      store.unlockedSkillIds = ['a']
+      expect(store.canUnlock('b')).toBe(true)
+    })
+
+    it('reqMode=or はいずれかの依存アンロックで許可', () => {
+      const store = (useSkillStore as unknown as () => any)()
+      store.availablePoints = 10
+      store.skillTreeData = {
+        id: 't',
+        name: 't',
+        nodes: [
+          { id: 'a', name: 'A', description: '', x: 0, y: 0, cost: 0, reqs: [] },
+          { id: 'b', name: 'B', description: '', x: 10, y: 10, cost: 0, reqs: [] },
+          { id: 'c', name: 'C', description: '', x: 20, y: 20, cost: 1, reqs: ['a', 'b'], reqMode: 'or' },
+        ],
+        connections: [],
+        updatedAt: '2023-01-01T00:00:00.000Z',
+      }
+
+      store.unlockedSkillIds = []
+      expect(store.canUnlock('c')).toBe(false)
+
+      store.unlockedSkillIds = ['a']
+      expect(store.canUnlock('c')).toBe(true)
+
+      store.unlockedSkillIds = ['b']
+      expect(store.canUnlock('c')).toBe(true)
+    })
   })
 })

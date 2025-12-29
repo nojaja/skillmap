@@ -4,9 +4,14 @@
     "noEmit": true,
     "types": ["vite/client", "jest", "node"],
     "allowImportingTsExtensions": true,
-    "module": "ES2022",
-    "moduleResolution": "node16",
-    "verbatimModuleSyntax": false
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "pinia": ["node_modules/pinia"]
+    },
+    "verbatimModuleSyntax": false,
+    "isolatedModules": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "../test/unit/frontend/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "../test/unit/frontend/**/*.ts", "../test/**/*.d.ts"]
 }

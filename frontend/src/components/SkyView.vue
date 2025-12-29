@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useSkillStore } from '../stores/skillStore'
 import SkillConstellation from './SkillConstellation.vue'
 import SkyrimLevelGauge from './SkyrimLevelGauge.vue'
 
+const skillStore = useSkillStore()
+const nodes = computed(() => skillStore.skillTreeData.nodes)
+
+const containerRef = ref<HTMLDivElement | null>(null)
 const offset = ref({ x: 0, y: 0 })
 const scale = ref(window.matchMedia('(max-width: 768px)').matches ? 1.12 : 1)
 const isDragging = ref(false)
@@ -18,10 +23,16 @@ const applyScale = (value: number) => {
   scale.value = clampScale(value)
 }
 
+const hasUserMoved = ref(false)
+const markUserMoved = () => {
+  hasUserMoved.value = true
+}
+
 const canDragView = computed(() => true)
 
 const onMouseDown = (event: MouseEvent) => {
   if (!canDragView.value) return
+  markUserMoved()
   isDragging.value = true
   dragStart.value = { x: event.clientX, y: event.clientY }
   initialOffset.value = { ...offset.value }
@@ -39,6 +50,7 @@ const onMouseMove = (event: MouseEvent) => {
 
 const onWheel = (event: WheelEvent) => {
   event.preventDefault()
+  markUserMoved()
   const factor = Math.exp(-event.deltaY * 0.0015)
   applyScale(scale.value * factor)
 }
@@ -55,6 +67,7 @@ const onTouchStart = (event: TouchEvent) => {
   if (!canDragView.value) return
 
   if (event.touches.length === 2) {
+    markUserMoved()
     pinchState.active = true
     pinchState.startDistance = distanceBetweenTouches(event.touches)
     pinchState.startScale = scale.value
@@ -63,6 +76,7 @@ const onTouchStart = (event: TouchEvent) => {
 
   const touch = event.touches[0]
   if (!touch) return
+  markUserMoved()
   isDragging.value = true
   dragStart.value = { x: touch.clientX, y: touch.clientY }
   initialOffset.value = { ...offset.value }
@@ -73,6 +87,7 @@ const onTouchMove = (event: TouchEvent) => {
     event.preventDefault()
     const currentDistance = distanceBetweenTouches(event.touches)
     if (currentDistance === 0) return
+    markUserMoved()
     const factor = currentDistance / pinchState.startDistance
     applyScale(pinchState.startScale * factor)
     return
@@ -82,6 +97,7 @@ const onTouchMove = (event: TouchEvent) => {
   const touch = event.touches[0]
   if (!touch) return
   event.preventDefault()
+  markUserMoved()
   const dx = touch.clientX - dragStart.value.x
   const dy = touch.clientY - dragStart.value.y
   offset.value = {
@@ -99,6 +115,37 @@ const transformValue = computed(
   () => `translate(${offset.value.x}px, ${offset.value.y}px) scale(${scale.value})`,
 )
 
+const computeNodesCenter = () => {
+  if (!nodes.value.length) return { x: 500, y: 400 }
+  const xs = nodes.value.map((n) => n.x)
+  const ys = nodes.value.map((n) => n.y)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  return {
+    x: (minX + maxX) / 2,
+    y: (minY + maxY) / 2,
+  }
+}
+
+const centerToNodes = () => {
+  const el = containerRef.value
+  if (!el) return
+  const { width, height } = el.getBoundingClientRect()
+  const center = computeNodesCenter()
+  const currentScale = scale.value || 1
+  offset.value = {
+    x: width / (2 * currentScale) - center.x,
+    y: height / (2 * currentScale) - center.y,
+  }
+}
+
+onMounted(() => {
+  void nextTick(centerToNodes)
+  window.addEventListener('resize', centerToNodes)
+})
+
 onMounted(() => {
   window.addEventListener('mouseup', stopDragging)
   window.addEventListener('touchend', stopDragging)
@@ -109,12 +156,30 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', stopDragging)
   window.removeEventListener('touchend', stopDragging)
   window.removeEventListener('touchcancel', stopDragging)
+  window.removeEventListener('resize', centerToNodes)
 })
+
+watch(
+  () => skillStore.currentTreeId,
+  () => {
+    hasUserMoved.value = false
+    void nextTick(centerToNodes)
+  },
+)
+
+watch(
+  () => skillStore.skillTreeData.nodes.length,
+  () => {
+    if (hasUserMoved.value) return
+    void nextTick(centerToNodes)
+  },
+)
 </script>
 
 <template>
   <div
     class="relative h-[calc(100vh-96px)] overflow-hidden bg-[#050505]"
+    ref="containerRef"
     style="
       background-image: radial-gradient(circle at 50% 50%, #111827 0%, #000000 100%),
         radial-gradient(circle at 50% 40%, rgba(30, 58, 138, 0.2) 0%, transparent 60%),
