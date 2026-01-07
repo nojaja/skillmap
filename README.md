@@ -1,20 +1,8 @@
 # skillmap
 
-The Elder Scrolls V: Skyrim inspired skill constellation prototype built with Vue 3, Vite, Pinia, Tailwind CSS on the frontend and Express + SQLite (Prisma) on the backend.
+The Elder Scrolls V: Skyrim inspired skill constellation prototype built with Vue 3, Vite, Pinia, and Tailwind CSS. Data is stored locally via Service Worker + OPFS; no external backend service is included.
 
 ## Getting started
-
-### Backend
-```bash
-cd server
-npm install
-cp .env.example .env  # configure SQLite path
-npm run prisma:push   # prepares SQLite schema
-npm run start         # starts the API on http://localhost:3000
-```
-Endpoints:
-- `GET /api/status` — returns remaining skill points and unlocked skill IDs
-- `POST /api/save` — updates remaining skill points and unlocked skill IDs
 
 ### Frontend
 ```bash
@@ -22,4 +10,4 @@ cd frontend
 npm install
 npm run dev           # launches Vite dev server on http://localhost:5173
 ```
-The Vite dev server proxies `/api` requests to the backend.
+Data is kept entirely in the browser (Service Worker + OPFS). There is no API server to run.

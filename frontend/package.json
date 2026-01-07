@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "npm run build:sw && vue-tsc -b && vite build",
+    "build:sw": "tsc -p tsconfig.sw.json",
     "preview": "vite preview",
     "test": "jest",
     "test:ci": "jest --coverage",
