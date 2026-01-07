@@ -8,10 +8,30 @@ const config = {
       fileName: resolve('./tsconfig.app.json'),
     },
     doNotFollow: {
-      path: 'node_modules',
+      path: 'node_modules|^src/service-worker',
     },
     includeOnly: ['^src'],
-    exclude: ['src/utils/grid.ts', 'src/components/HelloWorld.vue', 'src/service-worker/sw.ts'],
+    exclude: ['src/components/HelloWorld.vue'],
+  },
+  ruleSet: {
+    allowedSeverityChanges: [
+      {
+        name: 'no-orphans',
+        from: 'error',
+        to: 'ignore',
+      },
+    ],
+    forbidden: [
+      {
+        name: 'no-orphans',
+        severity: 'error',
+        from: {},
+        to: {
+          orphan: true,
+          pathNot: '^(src/service-worker/)',
+        },
+      },
+    ],
   },
 }
 
