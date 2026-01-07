@@ -11,7 +11,7 @@ const config = {
       path: 'node_modules',
     },
     includeOnly: ['^src'],
-    exclude: ['src/utils/grid.ts', 'src/components/HelloWorld.vue'],
+    exclude: ['src/utils/grid.ts', 'src/components/HelloWorld.vue', 'src/service-worker/sw.ts'],
   },
 }
 

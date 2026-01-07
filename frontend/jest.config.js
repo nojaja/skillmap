@@ -12,6 +12,7 @@ export default {
   moduleFileExtensions: ['ts', 'js', 'json', 'mjs', 'cjs'],
   testMatch: ['<rootDir>/../test/unit/frontend/**/*.test.ts'],
   verbose: true,
+  forceExit: true,
   collectCoverage: true,
   coverageDirectory: '<rootDir>/../coverage/frontend',
   collectCoverageFrom: ['<rootDir>/src/utils/**/*.ts'],
