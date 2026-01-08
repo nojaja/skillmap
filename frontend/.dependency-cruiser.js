@@ -2,7 +2,6 @@ import { resolve } from 'path'
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 const config = {
-  extends: 'dependency-cruiser/configs/recommended-strict',
   options: {
     tsConfig: {
       fileName: resolve('./tsconfig.app.json'),
@@ -11,8 +10,9 @@ const config = {
       path: 'node_modules',
     },
     includeOnly: ['^src'],
-    exclude: ['src/utils/grid.ts', 'src/components/HelloWorld.vue'],
+    exclude: ['src/components/HelloWorld.vue'],
   },
+  forbidden: [],
 }
 
 export default config

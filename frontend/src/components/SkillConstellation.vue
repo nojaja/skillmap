@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { SKILL_POINT_SYSTEM_ENABLED, useSkillStore, type SkillNode } from '../stores/skillStore'
+import { snapToGrid } from '../utils/grid'
 
 const skillStore = useSkillStore()
 const skillPointSystemEnabled = SKILL_POINT_SYSTEM_ENABLED
@@ -165,7 +166,7 @@ const updateDragPosition = (clientX: number, clientY: number) => {
   if (!isEditMode.value || !dragState.id) return
   const dx = clientX - dragState.startX
   const dy = clientY - dragState.startY
-  skillStore.moveSkill(dragState.id, dragState.nodeStartX + dx, dragState.nodeStartY + dy)
+  skillStore.moveSkill(dragState.id, snapToGrid(dragState.nodeStartX + dx), snapToGrid(dragState.nodeStartY + dy))
 }
 
 const handleMouseMove = (event: MouseEvent) => {
