@@ -2,7 +2,7 @@
   "extends": "./tsconfig.app.json",
   "compilerOptions": {
     "outDir": "./public",
-    "rootDir": "./src/service-worker",
+    "rootDir": "./src",
     "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -10,7 +10,8 @@
     "types": [],
     "noEmitOnError": true,
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": false
   },
-  "include": ["src/service-worker/**/*.ts"]
+  "include": ["src/service-worker/**/*.ts", "src/sw/**/*.ts"]
 }
