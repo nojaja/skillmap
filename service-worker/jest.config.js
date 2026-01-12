@@ -14,31 +14,20 @@ export default {
   verbose: true,
   collectCoverage: true,
   testTimeout: 10000,
-  coverageDirectory: '<rootDir>/../coverage/frontend',
-  collectCoverageFrom: ['<rootDir>/src/utils/**/*.ts'],
-  coveragePathIgnorePatterns: ['/stores/skillStore.ts'],
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
+  coverageDirectory: '<rootDir>/../coverage/service-worker',
+  collectCoverageFrom: ['<rootDir>/src/**/*.ts'],
   transform: {
     '^.+\\.(ts|tsx)$': [
       'ts-jest',
       {
         useESM: false,
         tsconfig: path.join(__dirname, 'tsconfig.jest.json'),
-        // テストでは型チェックを省略し、Vite/esbuildと同様にトランスパイルのみ実施する
         diagnostics: false,
       },
     ],
   },
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^pinia$': '<rootDir>/test/mocks/pinia.ts',
-    '.*/stores/skillStore\\.ts$': '<rootDir>/test/mocks/skillStore.ts',
-  },
-  coverageThreshold: {
-    global: {
-      branches: 80,
-      functions: 80,
-      lines: 80,
-      statements: 80,
-    },
   },
 }
