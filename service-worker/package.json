@@ -9,7 +9,7 @@
     "test:ci": "jest --coverage",
     "lint": "eslint ./src/**/*.ts --no-warn-ignored --no-ignore",
     "depcruise": "depcruise --config .dependency-cruiser.js src",
-    "docs": "typedoc"
+    "docs": "typedoc --options typedoc.js"
   },
   "dependencies": {},
   "devDependencies": {
