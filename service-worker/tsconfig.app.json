@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2023", "WebWorker"],
-    "outDir": "./public",
+    "outDir": "../dist/service-worker",
     "rootDir": "./src",
     "types": [],
     "declaration": false,

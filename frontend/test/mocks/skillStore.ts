@@ -6,8 +6,8 @@ import {
   normalizeSkillTree,
   normalizeStatus,
   type SkillTree,
-} from '../../frontend/src/services/skillNormalizer.ts'
-import { type SkillNode, type SkillConnection } from '../../frontend/src/types/skill'
+} from '../../src/services/skillNormalizer.ts'
+import { type SkillNode, type SkillConnection } from '../../src/types/skill'
 
 export { normalizeConnections, normalizeNodes, normalizeSkillTree, normalizeStatus, defaultSkillTree }
 

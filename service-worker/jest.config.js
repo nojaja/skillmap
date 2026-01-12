@@ -6,14 +6,15 @@ const __dirname = path.dirname(__filename)
 
 export default {
   rootDir: __dirname,
-  roots: [__dirname, path.resolve(__dirname, '../test')],
+  roots: [__dirname],
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleFileExtensions: ['ts', 'js', 'json', 'mjs', 'cjs'],
-  testMatch: ['<rootDir>/../test/unit/service-worker/**/*.test.ts'],
+  testMatch: ['<rootDir>/test/unit/**/*.test.ts'],
   verbose: true,
-  forceExit: true,
   collectCoverage: true,
+  testTimeout: 10000,
+  setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   coverageDirectory: '<rootDir>/../coverage/service-worker',
   collectCoverageFrom: ['<rootDir>/src/**/*.ts'],
   transform: {

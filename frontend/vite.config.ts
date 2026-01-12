@@ -10,12 +10,12 @@ const copyServiceWorkerPlugin: Plugin = {
   apply: 'build',
   enforce: 'post',
   writeBundle() {
-    const swSource = resolve(__dirname, '../service-worker/public/sw.js')
-    const swDest = resolve(__dirname, './public/sw.js')
+    const swSource = resolve(__dirname, '../dist/service-worker/sw.js')
+    const swDest = resolve(__dirname, '../dist/frontend/sw.js')
     try {
-      mkdirSync(resolve(__dirname, './public'), { recursive: true })
+      mkdirSync(resolve(__dirname, '../dist/frontend'), { recursive: true })
       copyFileSync(swSource, swDest)
-      console.log('✓ Service Worker copied to public/sw.js')
+      console.log('✓ Service Worker copied to dist/frontend/sw.js')
     } catch (error) {
       console.warn('Warning: Could not copy service worker:', error)
     }
@@ -26,5 +26,9 @@ const copyServiceWorkerPlugin: Plugin = {
 export default defineConfig({
   base: '/skillmap/',
   plugins: [vue(), copyServiceWorkerPlugin],
+  build: {
+    outDir: '../dist/frontend',
+    emptyOutDir: true,
+  },
 })
 

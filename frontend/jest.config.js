@@ -6,14 +6,14 @@ const __dirname = path.dirname(__filename)
 
 export default {
   rootDir: __dirname,
-  roots: [__dirname, path.resolve(__dirname, '../test')],
+  roots: [__dirname],
   testEnvironment: 'node',
   extensionsToTreatAsEsm: ['.ts'],
   moduleFileExtensions: ['ts', 'js', 'json', 'mjs', 'cjs'],
-  testMatch: ['<rootDir>/../test/unit/frontend/**/*.test.ts'],
+  testMatch: ['<rootDir>/test/unit/**/*.test.ts'],
   verbose: true,
-  forceExit: true,
   collectCoverage: true,
+  testTimeout: 10000,
   coverageDirectory: '<rootDir>/../coverage/frontend',
   collectCoverageFrom: ['<rootDir>/src/utils/**/*.ts'],
   coveragePathIgnorePatterns: ['/stores/skillStore.ts'],
@@ -30,8 +30,8 @@ export default {
   },
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^pinia$': '<rootDir>/../test/mocks/pinia.ts',
-    '.*/stores/skillStore\\.ts$': '<rootDir>/../test/mocks/skillStore.ts',
+    '^pinia$': '<rootDir>/test/mocks/pinia.ts',
+    '.*/stores/skillStore\\.ts$': '<rootDir>/test/mocks/skillStore.ts',
   },
   coverageThreshold: {
     global: {

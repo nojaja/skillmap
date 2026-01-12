@@ -37,6 +37,11 @@ const makeDeps = () => ({
 
 beforeEach(() => {
   jest.clearAllMocks()
+  jest.spyOn(console, 'error').mockImplementation(() => {})
+})
+
+afterEach(() => {
+  jest.restoreAllMocks()
 })
 
 describe('SkillTreeRepositoryImpl.listTrees', () => {
